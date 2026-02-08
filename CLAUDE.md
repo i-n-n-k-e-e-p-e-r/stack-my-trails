@@ -5,10 +5,11 @@ React Native (Expo 54) app that reads workout routes from Apple Health and stack
 ## Tech Stack
 
 - **Runtime:** Expo 54, React Native 0.81, TypeScript
-- **Navigation:** Expo Router (file-based), single "Map" tab
+- **Navigation:** Expo Router (file-based), 3 tabs + modal
 - **HealthKit:** `@kingstinct/react-native-healthkit` v13 (Nitro Modules / JSI)
 - **Maps:** `react-native-maps` with Apple Maps (no API key needed)
 - **Storage:** `expo-sqlite` for caching imported trail data
+- **Date Picker:** `@react-native-community/datetimepicker`
 - **Build:** Dev client build required (has `ios/` directory, not Expo Go)
 
 ## Project Structure
@@ -16,18 +17,20 @@ React Native (Expo 54) app that reads workout routes from Apple Health and stack
 ```
 app/
   _layout.tsx             — Root layout (SQLiteProvider + ThemeProvider + Stack)
+  filter-modal.tsx        — Modal: date range + area selection filters
   (tabs)/
-    _layout.tsx           — Tab layout (single Map tab)
-    index.tsx             — Main map screen with import + display
-components/
-  area-picker.tsx         — Horizontal scroll cluster chips
-  date-range-picker.tsx   — 1M/3M/6M/1Y/All preset buttons
+    _layout.tsx           — Tab layout (Trails, Stack, Settings)
+    index.tsx             — Tab 1: trail list with preview map
+    stack.tsx             — Tab 2: stacked trails map
+    settings.tsx          — Tab 3: import + stats
 hooks/
-  use-trails.ts           — SQLite-backed trail query + clustering
-  use-import-trails.ts    — HealthKit → SQLite import with progress tracking
+  use-trails.ts           — SQLite → clustering for stack view
+  use-import-trails.ts    — HealthKit → SQLite import with progress
 lib/
-  db.ts                   — SQLite database layer (init, CRUD, label cache)
-  geo.ts                  — Bounding box, haversine, union-find clustering
+  db.ts                   — SQLite database layer (schema, CRUD, migrations, label cache)
+  geo.ts                  — Bounding box, haversine, Douglas-Peucker simplification, union-find clustering
+components/
+  (various themed components from Expo template)
 constants/
   theme.ts                — Colors and Fonts
 ```
@@ -38,47 +41,56 @@ constants/
 HealthKit → [Import with progress] → SQLite → [Fast read] → Clustering → Map
 ```
 
-- **Import is explicit** — user taps "Import" button, progress bar shows
-- **Display reads from SQLite only** — fast, no HealthKit calls on every render
-- **Coordinates stored as JSON strings** in SQLite, parsed on read
+- **Import is explicit** — user taps "Import" in Settings tab, progress bar shows
+- **Display reads from SQLite only** — fast, no HealthKit calls on render
+- **Coordinates simplified on import** — Douglas-Peucker algorithm, 80-90% point reduction
 - **Cluster labels cached** in `cluster_labels` table (reverse geocoding)
+- **Schema versioned** — `schema_version` table tracks migrations
 
 ## Key Patterns
 
 ### HealthKit Integration
 - Package: `@kingstinct/react-native-healthkit`
 - Import types from `@kingstinct/react-native-healthkit/types` (NOT `/types/Workouts`)
-- Permissions needed: `HKWorkoutTypeIdentifier` + `HKWorkoutRouteTypeIdentifier`
+- Permissions: `HKWorkoutTypeIdentifier` + `HKWorkoutRouteTypeIdentifier`
 - Workout objects are `WorkoutProxy` — call `workout.getWorkoutRoutes()` for GPS data
-- Each route has `.locations[]` with `{ latitude, longitude, altitude, speed, course, date }`
+- Weather data available on `BaseSample`: `metadataWeatherTemperature` (Quantity), `metadataWeatherCondition` (enum)
 - Activity types: running=37, walking=52, cycling=13, hiking=24
 
 ### SQLite Storage
 - Database: `trails.db`, initialized via `SQLiteProvider` in root layout
 - `expo-sqlite` modern API (not `/legacy`), async methods
-- Trails table: one row per workout, coordinates as JSON string
-- Bounding box columns for efficient spatial-ish queries
+- Schema v2: trails table with weather columns (temperature, weather_condition)
+- Coordinates stored as simplified JSON strings
 - Label cache: rounded lat/lng (1 decimal, ~11km resolution) as composite PK
 
+### Coordinate Simplification (Crash Fix)
+- **Problem:** Raw GPS routes have thousands of points, rendering 50+ trails = OOM crash
+- **Fix:** Douglas-Peucker algorithm in `lib/geo.ts:simplifyCoordinates()`
+- Applied at import time (tolerance=0.00005), stored simplified
+- Stack view also caps at 50 trails per render
+- Existing data requires re-import after adding simplification
+
 ### Geographic Clustering
-- Workouts clustered by bounding box center distance (5km threshold)
-- Union-find algorithm in `lib/geo.ts`
-- Cluster labels: check SQLite cache first, then `MapView.addressForCoordinate()`
+- Union-find algorithm in `lib/geo.ts:clusterTrails()` (5km threshold)
+- Cluster labels: SQLite cache → `MapView.addressForCoordinate()` fallback
 
 ### Apple Maps
-- Provider: default (Apple Maps on iOS), no config plugin needed for react-native-maps
+- No config plugin for react-native-maps (don't add to plugins array!)
 - `mapType="mutedStandard"` for subtle background
-- Polylines with semi-transparent red (`rgba(255, 59, 48, 0.35)`) for stacking effect
-- `fitToCoordinates()` to auto-zoom to selected cluster
+- Polylines: `rgba(255, 59, 48, 0.35)` for stacking, `rgba(255, 59, 48, 0.8)` for single trail preview
+- `fitToCoordinates()` to auto-zoom
 
 ## Known Issues & Lessons
 
-- **Config plugins require prebuild:** When adding native modules, run `npx expo prebuild --platform ios --clean` to regenerate the ios/ directory with entitlements and Info.plist entries
-- **react-native-maps has NO config plugin** — don't add it to the plugins array in app.json
-- **Large datasets crash with in-memory approach** — loading all route coordinates from HealthKit for >6 months causes OOM. SQLite caching fixes this.
-- **HealthKit import is slow** — fetching routes one-by-one is sequential (~1-2s per workout). Import must be explicit with progress UI, not done on every app launch.
-- **Reverse geocoding must be cached** — `MapView.addressForCoordinate()` is async and slow. Cache results in SQLite.
-- **expo-sqlite needs prebuild** — it's a native module, requires `npx expo prebuild --platform ios --clean` after install
+- **Config plugins require prebuild:** `npx expo prebuild --platform ios --clean` after adding native modules
+- **react-native-maps has NO config plugin** — don't add it to app.json plugins
+- **expo-sqlite needs prebuild** — it's a native module
+- **Coordinate simplification is critical** — without it, >50 trails on map = crash
+- **HealthKit import is sequential** — ~1-2s per workout, must be explicit with progress UI
+- **Reverse geocoding must be cached** — `MapView.addressForCoordinate()` is async/slow
+- **Schema migrations** — use version table, ALTER TABLE with .catch() for idempotency
+- **Filter modal uses URL params** — pass cluster data as JSON string via router params
 
 ## Build & Run
 
@@ -99,7 +111,7 @@ npx expo lint
 
 ## App Config Notes
 
-- `app.json` plugins: `expo-router`, `expo-splash-screen`, `@kingstinct/react-native-healthkit`, `expo-sqlite`
-- HealthKit plugin options: `NSHealthShareUsageDescription`, `NSHealthUpdateUsageDescription: false`, `background: false`
+- `app.json` plugins: `expo-router`, `expo-splash-screen`, `@kingstinct/react-native-healthkit`, `expo-sqlite`, `@react-native-community/datetimepicker`
+- HealthKit plugin: `NSHealthShareUsageDescription`, `NSHealthUpdateUsageDescription: false`, `background: false`
 - New Architecture enabled (`newArchEnabled: true`)
 - Typed routes enabled (`experiments.typedRoutes: true`)

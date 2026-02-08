@@ -26,9 +26,27 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Map',
+          title: 'Trails',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="figure.run" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="stack"
+        options={{
+          title: 'Stack',
           tabBarIcon: ({ color }) => (
             <IconSymbol size={28} name="map.fill" color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: 'Settings',
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="gearshape.fill" color={color} />
           ),
         }}
       />

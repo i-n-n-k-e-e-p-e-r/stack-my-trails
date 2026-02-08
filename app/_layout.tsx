@@ -15,6 +15,10 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="filter-modal"
+            options={{ presentation: 'modal', title: 'Filters' }}
+          />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>

@@ -50,6 +50,68 @@ export function haversineKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+/** Douglas-Peucker line simplification. Reduces coordinate count by 80-90%. */
+export function simplifyCoordinates(
+  coords: Coordinate[],
+  tolerance: number = 0.00005,
+): Coordinate[] {
+  if (coords.length <= 2) return coords;
+
+  function perpDist(
+    pt: Coordinate,
+    a: Coordinate,
+    b: Coordinate,
+  ): number {
+    const dx = b.longitude - a.longitude;
+    const dy = b.latitude - a.latitude;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) {
+      return Math.sqrt(
+        (pt.latitude - a.latitude) ** 2 + (pt.longitude - a.longitude) ** 2,
+      );
+    }
+    const t = Math.max(
+      0,
+      Math.min(
+        1,
+        ((pt.longitude - a.longitude) * dx + (pt.latitude - a.latitude) * dy) /
+          lenSq,
+      ),
+    );
+    return Math.sqrt(
+      (pt.latitude - (a.latitude + t * dy)) ** 2 +
+        (pt.longitude - (a.longitude + t * dx)) ** 2,
+    );
+  }
+
+  function simplify(segment: Coordinate[]): Coordinate[] {
+    if (segment.length <= 2) return segment;
+
+    let maxDist = 0;
+    let maxIdx = 0;
+    const first = segment[0];
+    const last = segment[segment.length - 1];
+
+    for (let i = 1; i < segment.length - 1; i++) {
+      const d = perpDist(segment[i], first, last);
+      if (d > maxDist) {
+        maxDist = d;
+        maxIdx = i;
+      }
+    }
+
+    if (maxDist > tolerance) {
+      const left = simplify(segment.slice(0, maxIdx + 1));
+      const right = simplify(segment.slice(maxIdx));
+      return left.slice(0, -1).concat(right);
+    }
+
+    return [first, last];
+  }
+
+  return simplify(coords);
+}
+
 export interface Trail {
   workoutId: string;
   activityType: number;
@@ -58,6 +120,8 @@ export interface Trail {
   duration: number;
   coordinates: Coordinate[];
   boundingBox: BoundingBox;
+  temperature?: number | null;
+  weatherCondition?: number | null;
 }
 
 export interface TrailCluster {
