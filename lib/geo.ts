@@ -112,27 +112,34 @@ export function simplifyCoordinates(
   return simplify(coords);
 }
 
-export interface Trail {
+/** Trail metadata without coordinates — cheap to load for lists and clustering. */
+export interface TrailSummary {
   workoutId: string;
   activityType: number;
   startDate: string;
   endDate: string;
   duration: number;
-  coordinates: Coordinate[];
   boundingBox: BoundingBox;
   temperature?: number | null;
   weatherCondition?: number | null;
 }
 
+/** Full trail with coordinates — only load when needed for map display. */
+export interface Trail extends TrailSummary {
+  coordinates: Coordinate[];
+}
+
 export interface TrailCluster {
   id: string;
-  trails: Trail[];
+  trailIds: string[];
+  summaries: TrailSummary[];
   boundingBox: BoundingBox;
   label?: string;
 }
 
+/** Clusters trail summaries by geographic proximity. No coordinates needed. */
 export function clusterTrails(
-  trails: Trail[],
+  trails: TrailSummary[],
   maxDistanceKm: number = 5,
 ): TrailCluster[] {
   const n = trails.length;
@@ -162,7 +169,7 @@ export function clusterTrails(
     }
   }
 
-  const groups = new Map<number, Trail[]>();
+  const groups = new Map<number, TrailSummary[]>();
   for (let i = 0; i < n; i++) {
     const root = find(i);
     if (!groups.has(root)) groups.set(root, []);
@@ -180,13 +187,14 @@ export function clusterTrails(
 
     clusters.push({
       id: groupTrails[0].workoutId,
-      trails: groupTrails,
+      trailIds: groupTrails.map((t) => t.workoutId),
+      summaries: groupTrails,
       boundingBox: unionBbox,
     });
   }
 
   // Most popular area first
-  clusters.sort((a, b) => b.trails.length - a.trails.length);
+  clusters.sort((a, b) => b.summaries.length - a.summaries.length);
 
   return clusters;
 }

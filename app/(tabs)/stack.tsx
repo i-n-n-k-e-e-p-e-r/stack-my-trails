@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MapView, { Polyline } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
@@ -9,11 +9,9 @@ import { Colors } from '@/constants/theme';
 import { useTrails } from '@/hooks/use-trails';
 import { bboxCenter } from '@/lib/geo';
 import { getCachedLabel, setCachedLabel } from '@/lib/db';
-import type { TrailCluster } from '@/lib/geo';
+import type { Trail } from '@/lib/geo';
 
-const TRAIL_COLOR = 'rgba(255, 59, 48, 0.35)';
-const TRAIL_WIDTH = 2.5;
-const MAX_RENDERED_TRAILS = 50;
+const TRAIL_WIDTH = 3;
 
 export default function StackScreen() {
   const insets = useSafeAreaInsets();
@@ -23,7 +21,6 @@ export default function StackScreen() {
   const router = useRouter();
   const db = useSQLiteContext();
 
-  // Read filter params from modal (passed via URL params)
   const params = useLocalSearchParams<{
     startDate?: string;
     endDate?: string;
@@ -36,18 +33,15 @@ export default function StackScreen() {
     return d;
   });
   const [endDate, setEndDate] = useState(() => new Date());
-  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(
-    null,
-  );
+  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
 
-  // Apply filter params when coming back from modal
   useEffect(() => {
     if (params.startDate) setStartDate(new Date(params.startDate));
     if (params.endDate) setEndDate(new Date(params.endDate));
     if (params.clusterId) setSelectedClusterId(params.clusterId);
   }, [params.startDate, params.endDate, params.clusterId]);
 
-  const { clusters, loading } = useTrails({ startDate, endDate });
+  const { clusters, loading, loadClusterTrails } = useTrails({ startDate, endDate });
 
   // Auto-select first cluster
   useEffect(() => {
@@ -61,6 +55,40 @@ export default function StackScreen() {
     [clusters, selectedClusterId],
   );
 
+  // Load coordinates on demand for selected cluster
+  const [renderedTrails, setRenderedTrails] = useState<Trail[]>([]);
+  const [loadingTrails, setLoadingTrails] = useState(false);
+
+  useEffect(() => {
+    if (!selectedCluster) {
+      setRenderedTrails([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingTrails(true);
+
+    loadClusterTrails(selectedCluster).then((trails) => {
+      if (!cancelled) {
+        setRenderedTrails(trails);
+        setLoadingTrails(false);
+
+        // Fit map to loaded coordinates
+        const allCoords = trails.flatMap((t) => t.coordinates);
+        if (allCoords.length > 0) {
+          setTimeout(() => {
+            mapRef.current?.fitToCoordinates(allCoords, {
+              edgePadding: { top: 100, right: 40, bottom: 80, left: 40 },
+              animated: true,
+            });
+          }, 200);
+        }
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [selectedCluster, loadClusterTrails]);
+
   // Resolve cluster labels
   const [, forceUpdate] = useState(0);
   useEffect(() => {
@@ -72,11 +100,7 @@ export default function StackScreen() {
       for (const cluster of clusters) {
         if (cluster.label || cancelled) continue;
         const center = bboxCenter(cluster.boundingBox);
-        const cached = await getCachedLabel(
-          db,
-          center.latitude,
-          center.longitude,
-        );
+        const cached = await getCachedLabel(db, center.latitude, center.longitude);
         if (cached) {
           cluster.label = cached;
           updated = true;
@@ -100,33 +124,8 @@ export default function StackScreen() {
     }
 
     labelAll();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [clusters, db]);
-
-  // Fit map to cluster
-  const fitToCluster = useCallback((cluster: TrailCluster) => {
-    const allCoords = cluster.trails.flatMap((t) => t.coordinates);
-    if (allCoords.length === 0) return;
-    mapRef.current?.fitToCoordinates(allCoords, {
-      edgePadding: { top: 100, right: 40, bottom: 80, left: 40 },
-      animated: true,
-    });
-  }, []);
-
-  useEffect(() => {
-    if (selectedCluster) {
-      const timer = setTimeout(() => fitToCluster(selectedCluster), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedCluster, fitToCluster]);
-
-  // Limit trails to prevent crash
-  const renderedTrails = useMemo(() => {
-    if (!selectedCluster) return [];
-    return selectedCluster.trails.slice(0, MAX_RENDERED_TRAILS);
-  }, [selectedCluster]);
 
   const openFilters = useCallback(() => {
     router.push({
@@ -139,12 +138,14 @@ export default function StackScreen() {
           clusters.map((c) => ({
             id: c.id,
             label: c.label ?? 'Unknown',
-            count: c.trails.length,
+            count: c.summaries.length,
           })),
         ),
       },
     });
   }, [router, startDate, endDate, selectedClusterId, clusters]);
+
+  const totalInCluster = selectedCluster?.summaries.length ?? 0;
 
   return (
     <View style={styles.container}>
@@ -159,7 +160,7 @@ export default function StackScreen() {
           <Polyline
             key={trail.workoutId}
             coordinates={trail.coordinates}
-            strokeColor={TRAIL_COLOR}
+            strokeColor={colors.trailStrokeStacked}
             strokeWidth={TRAIL_WIDTH}
             lineCap="round"
             lineJoin="round"
@@ -167,7 +168,7 @@ export default function StackScreen() {
         ))}
       </MapView>
 
-      {/* Top bar with filter button */}
+      {/* Top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <View
           style={[
@@ -187,9 +188,9 @@ export default function StackScreen() {
                 {selectedCluster?.label ?? 'Select an area'}
               </Text>
               <Text style={[styles.trailCount, { color: colors.icon }]}>
-                {loading
+                {loading || loadingTrails
                   ? 'Loading...'
-                  : `${renderedTrails.length}${(selectedCluster?.trails.length ?? 0) > MAX_RENDERED_TRAILS ? `/${selectedCluster?.trails.length}` : ''} trails`}
+                  : `${renderedTrails.length}${totalInCluster > renderedTrails.length ? ` of ${totalInCluster}` : ''} trails`}
               </Text>
             </View>
             <TouchableOpacity
@@ -200,6 +201,12 @@ export default function StackScreen() {
           </View>
         </View>
       </View>
+
+      {loadingTrails && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.tint} />
+        </View>
+      )}
     </View>
   );
 }
@@ -250,5 +257,10 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

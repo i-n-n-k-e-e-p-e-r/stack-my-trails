@@ -1,10 +1,9 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Trail, Coordinate } from './geo';
+import type { Trail, TrailSummary, Coordinate } from './geo';
 
 const SCHEMA_VERSION = 2;
 
 export async function initDatabase(db: SQLiteDatabase) {
-  // Create version tracking table
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
   `);
@@ -41,16 +40,14 @@ export async function initDatabase(db: SQLiteDatabase) {
   }
 
   if (currentVersion < 2) {
-    // Add weather columns
-    await db.execAsync(`
+    await db
+      .execAsync(`
       ALTER TABLE trails ADD COLUMN temperature REAL;
       ALTER TABLE trails ADD COLUMN weather_condition INTEGER;
-    `).catch(() => {
-      // Columns may already exist if migration was partially applied
-    });
+    `)
+      .catch(() => {});
   }
 
-  // Update version
   if (currentVersion === 0) {
     await db.runAsync(
       'INSERT INTO schema_version (version) VALUES (?)',
@@ -84,13 +81,14 @@ export async function upsertTrail(db: SQLiteDatabase, trail: Trail) {
   );
 }
 
-interface TrailRow {
+// ---------- Summary queries (no coordinates — cheap) ----------
+
+interface SummaryRow {
   workout_id: string;
   activity_type: number;
   start_date: string;
   end_date: string;
   duration: number;
-  coordinates: string;
   bbox_min_lat: number;
   bbox_max_lat: number;
   bbox_min_lng: number;
@@ -99,14 +97,17 @@ interface TrailRow {
   weather_condition: number | null;
 }
 
-function rowToTrail(row: TrailRow): Trail {
+const SUMMARY_COLS = `workout_id, activity_type, start_date, end_date, duration,
+  bbox_min_lat, bbox_max_lat, bbox_min_lng, bbox_max_lng,
+  temperature, weather_condition`;
+
+function rowToSummary(row: SummaryRow): TrailSummary {
   return {
     workoutId: row.workout_id,
     activityType: row.activity_type,
     startDate: row.start_date,
     endDate: row.end_date,
     duration: row.duration,
-    coordinates: JSON.parse(row.coordinates) as Coordinate[],
     boundingBox: {
       minLat: row.bbox_min_lat,
       maxLat: row.bbox_max_lat,
@@ -118,27 +119,74 @@ function rowToTrail(row: TrailRow): Trail {
   };
 }
 
-export async function getTrails(
+/** Load all trail metadata WITHOUT coordinates. Safe for any dataset size. */
+export async function getAllTrailSummaries(
+  db: SQLiteDatabase,
+): Promise<TrailSummary[]> {
+  const rows = await db.getAllAsync<SummaryRow>(
+    `SELECT ${SUMMARY_COLS} FROM trails ORDER BY start_date DESC`,
+  );
+  return rows.map(rowToSummary);
+}
+
+/** Load trail summaries within a date range. */
+export async function getTrailSummaries(
   db: SQLiteDatabase,
   startDate: Date,
   endDate: Date,
-): Promise<Trail[]> {
-  const rows = await db.getAllAsync<TrailRow>(
-    `SELECT * FROM trails
+): Promise<TrailSummary[]> {
+  const rows = await db.getAllAsync<SummaryRow>(
+    `SELECT ${SUMMARY_COLS} FROM trails
      WHERE start_date >= ? AND start_date <= ?
      ORDER BY start_date DESC`,
     startDate.toISOString(),
     endDate.toISOString(),
   );
-  return rows.map(rowToTrail);
+  return rows.map(rowToSummary);
 }
 
-export async function getAllTrails(db: SQLiteDatabase): Promise<Trail[]> {
-  const rows = await db.getAllAsync<TrailRow>(
-    'SELECT * FROM trails ORDER BY start_date DESC',
+// ---------- Coordinate queries (on demand) ----------
+
+/** Load coordinates for a single trail. */
+export async function getTrailCoordinates(
+  db: SQLiteDatabase,
+  workoutId: string,
+): Promise<Coordinate[]> {
+  const row = await db.getFirstAsync<{ coordinates: string }>(
+    'SELECT coordinates FROM trails WHERE workout_id = ?',
+    workoutId,
   );
-  return rows.map(rowToTrail);
+  if (!row) return [];
+  return JSON.parse(row.coordinates) as Coordinate[];
 }
+
+/** Load full trails (with coordinates) for a list of IDs. Use sparingly. */
+export async function getTrailsByIds(
+  db: SQLiteDatabase,
+  workoutIds: string[],
+): Promise<Trail[]> {
+  if (workoutIds.length === 0) return [];
+
+  // Batch in groups of 50 to stay safe with SQLite variable limits
+  const results: Trail[] = [];
+  for (let i = 0; i < workoutIds.length; i += 50) {
+    const batch = workoutIds.slice(i, i + 50);
+    const placeholders = batch.map(() => '?').join(',');
+    const rows = await db.getAllAsync<SummaryRow & { coordinates: string }>(
+      `SELECT * FROM trails WHERE workout_id IN (${placeholders})`,
+      ...batch,
+    );
+    for (const row of rows) {
+      results.push({
+        ...rowToSummary(row),
+        coordinates: JSON.parse(row.coordinates) as Coordinate[],
+      });
+    }
+  }
+  return results;
+}
+
+// ---------- Stats ----------
 
 export async function getTrailCount(db: SQLiteDatabase): Promise<number> {
   const result = await db.getFirstAsync<{ count: number }>(
@@ -155,6 +203,8 @@ export async function getLastImportDate(
   );
   return result?.imported_at ?? null;
 }
+
+// ---------- Label cache ----------
 
 export async function getCachedLabel(
   db: SQLiteDatabase,

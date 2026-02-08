@@ -11,9 +11,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
-import { getAllTrails, getCachedLabel, setCachedLabel } from '@/lib/db';
+import {
+  getAllTrailSummaries,
+  getTrailCoordinates,
+  getCachedLabel,
+  setCachedLabel,
+} from '@/lib/db';
 import { bboxCenter } from '@/lib/geo';
-import type { Trail } from '@/lib/geo';
+import type { TrailSummary, Coordinate } from '@/lib/geo';
 
 const ACTIVITY_LABELS: Record<number, string> = {
   13: 'Cycling',
@@ -47,7 +52,7 @@ function formatDate(iso: string): string {
 
 function formatTemp(celsius: number | null | undefined): string | null {
   if (celsius == null) return null;
-  return `${Math.round(celsius)}°C`;
+  return `${Math.round(celsius)}\u00B0C`;
 }
 
 export default function TrailsScreen() {
@@ -57,34 +62,43 @@ export default function TrailsScreen() {
   const mapRef = useRef<MapView>(null);
   const db = useSQLiteContext();
 
-  const [trails, setTrails] = useState<Trail[]>([]);
+  const [trails, setTrails] = useState<TrailSummary[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedCoords, setSelectedCoords] = useState<Coordinate[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
 
-  // Load all trails
+  // Load summaries only — no coordinates
   useEffect(() => {
-    getAllTrails(db).then((data) => {
+    getAllTrailSummaries(db).then((data) => {
       setTrails(data);
-      if (data.length > 0 && !selectedId) {
+      if (data.length > 0) {
         setSelectedId(data[0].workoutId);
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db]);
 
   const selectedTrail = trails.find((t) => t.workoutId === selectedId) ?? null;
 
+  // Load coordinates only for the selected trail
+  useEffect(() => {
+    if (!selectedId) {
+      setSelectedCoords([]);
+      return;
+    }
+    getTrailCoordinates(db, selectedId).then(setSelectedCoords);
+  }, [db, selectedId]);
+
   // Fit map to selected trail
   useEffect(() => {
-    if (!selectedTrail || selectedTrail.coordinates.length === 0) return;
+    if (selectedCoords.length === 0) return;
     const timer = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(selectedTrail.coordinates, {
+      mapRef.current?.fitToCoordinates(selectedCoords, {
         edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
         animated: true,
       });
     }, 200);
     return () => clearTimeout(timer);
-  }, [selectedTrail]);
+  }, [selectedCoords]);
 
   // Resolve location labels
   useEffect(() => {
@@ -97,11 +111,7 @@ export default function TrailsScreen() {
         if (newLabels.has(trail.workoutId) || cancelled) continue;
         const center = bboxCenter(trail.boundingBox);
 
-        const cached = await getCachedLabel(
-          db,
-          center.latitude,
-          center.longitude,
-        );
+        const cached = await getCachedLabel(db, center.latitude, center.longitude);
         if (cached) {
           newLabels.set(trail.workoutId, cached);
           continue;
@@ -137,7 +147,7 @@ export default function TrailsScreen() {
   }, []);
 
   const renderItem = useCallback(
-    ({ item }: { item: Trail }) => {
+    ({ item }: { item: TrailSummary }) => {
       const isActive = item.workoutId === selectedId;
       const label = labels.get(item.workoutId);
       const temp = formatTemp(item.temperature);
@@ -193,18 +203,18 @@ export default function TrailsScreen() {
           showsCompass={false}
           pitchEnabled={false}
           rotateEnabled={false}>
-          {selectedTrail && (
+          {selectedCoords.length > 0 && (
             <Polyline
-              coordinates={selectedTrail.coordinates}
-              strokeColor="rgba(255, 59, 48, 0.8)"
-              strokeWidth={3}
+              coordinates={selectedCoords}
+              strokeColor={colors.trailStroke}
+              strokeWidth={3.5}
               lineCap="round"
               lineJoin="round"
             />
           )}
         </MapView>
 
-        {/* Trail info overlay on map */}
+        {/* Trail info overlay */}
         {selectedTrail && (
           <View style={styles.mapOverlay}>
             <View

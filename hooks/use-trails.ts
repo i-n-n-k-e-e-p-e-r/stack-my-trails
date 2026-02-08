@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getTrails } from '@/lib/db';
-import { clusterTrails, type TrailCluster } from '@/lib/geo';
+import { getTrailSummaries, getTrailsByIds } from '@/lib/db';
+import { clusterTrails, type TrailCluster, type Trail } from '@/lib/geo';
+
+const MAX_RENDERED_TRAILS = 50;
 
 interface UseTrailsOptions {
   startDate: Date;
@@ -12,6 +14,8 @@ interface UseTrailsResult {
   clusters: TrailCluster[];
   loading: boolean;
   error: string | null;
+  /** Load full trail data (with coordinates) for a cluster. Capped at 50. */
+  loadClusterTrails: (cluster: TrailCluster) => Promise<Trail[]>;
   refresh: () => void;
 }
 
@@ -35,10 +39,11 @@ export function useTrails({
       setError(null);
 
       try {
-        const trails = await getTrails(db, startDate, endDate);
+        // Load summaries only — no coordinates, very fast
+        const summaries = await getTrailSummaries(db, startDate, endDate);
         if (cancelled) return;
 
-        const result = clusterTrails(trails);
+        const result = clusterTrails(summaries);
         setClusters(result);
       } catch (e) {
         if (!cancelled) {
@@ -55,5 +60,14 @@ export function useTrails({
     };
   }, [db, startDate.getTime(), endDate.getTime(), refreshKey]);
 
-  return { clusters, loading, error, refresh };
+  const loadClusterTrails = useCallback(
+    async (cluster: TrailCluster): Promise<Trail[]> => {
+      // Only load coordinates for up to MAX_RENDERED_TRAILS
+      const ids = cluster.trailIds.slice(0, MAX_RENDERED_TRAILS);
+      return getTrailsByIds(db, ids);
+    },
+    [db],
+  );
+
+  return { clusters, loading, error, loadClusterTrails, refresh };
 }
