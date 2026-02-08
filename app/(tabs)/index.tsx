@@ -1,37 +1,37 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   StyleSheet,
   View,
   Text,
   FlatList,
   TouchableOpacity,
-} from 'react-native';
-import MapView, { Polyline } from 'react-native-maps';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
+} from "react-native";
+import MapView, { Polyline } from "react-native-maps";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSQLiteContext } from "expo-sqlite";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Colors } from "@/constants/theme";
 import {
   getAllTrailSummaries,
   getTrailCoordinates,
   getCachedLabel,
   setCachedLabel,
-} from '@/lib/db';
-import { bboxCenter } from '@/lib/geo';
-import type { TrailSummary, Coordinate } from '@/lib/geo';
+} from "@/lib/db";
+import { bboxCenter } from "@/lib/geo";
+import type { TrailSummary, Coordinate } from "@/lib/geo";
 
 const ACTIVITY_LABELS: Record<number, string> = {
-  13: 'Cycling',
-  24: 'Hiking',
-  37: 'Running',
-  52: 'Walking',
+  13: "Cycling",
+  24: "Hiking",
+  37: "Running",
+  52: "Walking",
 };
 
 const ACTIVITY_ICONS: Record<number, string> = {
-  13: '\u{1F6B2}',
-  24: '\u{26F0}',
-  37: '\u{1F3C3}',
-  52: '\u{1F6B6}',
+  13: "\u{1F6B2}",
+  24: "\u{26F0}",
+  37: "\u{1F3C3}",
+  52: "\u{1F6B6}",
 };
 
 function formatDuration(seconds: number): string {
@@ -44,9 +44,9 @@ function formatDuration(seconds: number): string {
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
@@ -57,7 +57,7 @@ function formatTemp(celsius: number | null | undefined): string | null {
 
 export default function TrailsScreen() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const mapRef = useRef<MapView>(null);
   const db = useSQLiteContext();
@@ -76,8 +76,6 @@ export default function TrailsScreen() {
       }
     });
   }, [db]);
-
-  const selectedTrail = trails.find((t) => t.workoutId === selectedId) ?? null;
 
   // Load coordinates only for the selected trail
   useEffect(() => {
@@ -111,7 +109,11 @@ export default function TrailsScreen() {
         if (newLabels.has(trail.workoutId) || cancelled) continue;
         const center = bboxCenter(trail.boundingBox);
 
-        const cached = await getCachedLabel(db, center.latitude, center.longitude);
+        const cached = await getCachedLabel(
+          db,
+          center.latitude,
+          center.longitude,
+        );
         if (cached) {
           newLabels.set(trail.workoutId, cached);
           continue;
@@ -119,10 +121,9 @@ export default function TrailsScreen() {
 
         try {
           const address = await mapRef.current!.addressForCoordinate(center);
-          const label =
-            [address.locality, address.administrativeArea]
-              .filter(Boolean)
-              .join(', ') || address.name;
+          const parts = [address.locality, address.administrativeArea]
+              .filter((v) => v && v !== "null");
+          const label = parts.length > 0 ? parts.join(", ") : address.name || "Unknown";
           newLabels.set(trail.workoutId, label);
           await setCachedLabel(db, center.latitude, center.longitude, label);
         } catch {
@@ -158,32 +159,35 @@ export default function TrailsScreen() {
             styles.trailRow,
             {
               backgroundColor: isActive
-                ? colorScheme === 'dark'
-                  ? '#1c2a33'
-                  : '#e8f4fd'
-                : 'transparent',
+                ? colorScheme === "dark"
+                  ? "#1c2a33"
+                  : "#e8f4fd"
+                : "transparent",
             },
           ]}
           onPress={() => handleSelect(item.workoutId)}
-          activeOpacity={0.6}>
+          activeOpacity={0.6}
+        >
           <Text style={styles.activityIcon}>
-            {ACTIVITY_ICONS[item.activityType] ?? '\u{1F3C3}'}
+            {ACTIVITY_ICONS[item.activityType] ?? "\u{1F3C3}"}
           </Text>
           <View style={styles.trailInfo}>
             <Text
               style={[styles.trailDate, { color: colors.text }]}
-              numberOfLines={1}>
+              numberOfLines={1}
+            >
               {formatDate(item.startDate)}
-              {' \u00B7 '}
-              {ACTIVITY_LABELS[item.activityType] ?? 'Workout'}
-              {' \u00B7 '}
+              {" \u00B7 "}
+              {ACTIVITY_LABELS[item.activityType] ?? "Workout"}
+              {" \u00B7 "}
               {formatDuration(item.duration)}
             </Text>
             <Text
               style={[styles.trailPlace, { color: colors.icon }]}
-              numberOfLines={1}>
-              {label ?? 'Loading...'}
-              {temp ? ` \u00B7 ${temp}` : ''}
+              numberOfLines={1}
+            >
+              {label ?? "Loading..."}
+              {temp ? ` \u00B7 ${temp}` : ""}
             </Text>
           </View>
         </TouchableOpacity>
@@ -200,9 +204,11 @@ export default function TrailsScreen() {
           ref={mapRef}
           style={StyleSheet.absoluteFillObject}
           mapType="mutedStandard"
+          userInterfaceStyle={colorScheme}
           showsCompass={false}
           pitchEnabled={false}
-          rotateEnabled={false}>
+          rotateEnabled={false}
+        >
           {selectedCoords.length > 0 && (
             <Polyline
               coordinates={selectedCoords}
@@ -213,34 +219,6 @@ export default function TrailsScreen() {
             />
           )}
         </MapView>
-
-        {/* Trail info overlay */}
-        {selectedTrail && (
-          <View style={styles.mapOverlay}>
-            <View
-              style={[
-                styles.mapInfoCard,
-                {
-                  backgroundColor:
-                    colorScheme === 'dark'
-                      ? 'rgba(21, 23, 24, 0.85)'
-                      : 'rgba(255, 255, 255, 0.85)',
-                },
-              ]}>
-              <Text
-                style={[styles.mapInfoTitle, { color: colors.text }]}
-                numberOfLines={1}>
-                {labels.get(selectedTrail.workoutId) ?? '...'}
-              </Text>
-              <Text style={[styles.mapInfoSub, { color: colors.icon }]}>
-                {formatDate(selectedTrail.startDate)}
-                {formatTemp(selectedTrail.temperature)
-                  ? ` \u00B7 ${formatTemp(selectedTrail.temperature)}`
-                  : ''}
-              </Text>
-            </View>
-          </View>
-        )}
       </View>
 
       {/* Trail list — bottom half */}
@@ -249,10 +227,10 @@ export default function TrailsScreen() {
           style={[
             styles.listHeader,
             {
-              borderBottomColor:
-                colorScheme === 'dark' ? '#2a2d2e' : '#e5e5e5',
+              borderBottomColor: colorScheme === "dark" ? "#2a2d2e" : "#e5e5e5",
             },
-          ]}>
+          ]}
+        >
           <Text style={[styles.listTitle, { color: colors.text }]}>
             {trails.length} Trails
           </Text>
@@ -274,30 +252,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapContainer: {
-    height: '45%',
-  },
-  mapOverlay: {
-    position: 'absolute',
-    bottom: 12,
-    left: 12,
-    right: 12,
-  },
-  mapInfoCard: {
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  mapInfoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  mapInfoSub: {
-    fontSize: 13,
-    marginTop: 2,
+    height: "50%",
   },
   listContainer: {
     flex: 1,
@@ -309,11 +264,11 @@ const styles = StyleSheet.create({
   },
   listTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   trailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 12,
@@ -326,7 +281,7 @@ const styles = StyleSheet.create({
   },
   trailDate: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   trailPlace: {
     fontSize: 13,

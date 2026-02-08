@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -10,15 +10,19 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSQLiteContext } from 'expo-sqlite';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { getAllTrailSummaries, getCachedLabel } from '@/lib/db';
+import { clusterTrails, bboxCenter } from '@/lib/geo';
 
 const PRESETS = [
-  { label: '1M', months: 1 },
-  { label: '3M', months: 3 },
-  { label: '6M', months: 6 },
-  { label: '1Y', months: 12 },
-  { label: 'All', months: 120 },
+  { label: '1D', days: 1 },
+  { label: '1W', days: 7 },
+  { label: '1M', days: 30 },
+  { label: '6M', days: 183 },
+  { label: '1Y', days: 365 },
+  { label: 'All', days: 3650 },
 ] as const;
 
 interface ClusterInfo {
@@ -32,11 +36,11 @@ export default function FilterModal() {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const router = useRouter();
+  const db = useSQLiteContext();
   const params = useLocalSearchParams<{
     startDate?: string;
     endDate?: string;
     clusterId?: string;
-    clusters?: string;
   }>();
 
   const [startDate, setStartDate] = useState(
@@ -50,25 +54,43 @@ export default function FilterModal() {
   );
   const [showCustomStart, setShowCustomStart] = useState(false);
   const [showCustomEnd, setShowCustomEnd] = useState(false);
+  const [clusterList, setClusterList] = useState<ClusterInfo[]>([]);
 
-  const clusterList: ClusterInfo[] = useMemo(() => {
-    try {
-      return params.clusters ? JSON.parse(params.clusters) : [];
-    } catch {
-      return [];
+  // Load all areas from DB
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAreas() {
+      const summaries = await getAllTrailSummaries(db);
+      const clusters = clusterTrails(summaries);
+
+      const areas: ClusterInfo[] = [];
+      for (const cluster of clusters) {
+        const center = bboxCenter(cluster.boundingBox);
+        const cached = await getCachedLabel(db, center.latitude, center.longitude);
+        areas.push({
+          id: cluster.id,
+          label: cached ?? `${center.latitude.toFixed(1)}, ${center.longitude.toFixed(1)}`,
+          count: cluster.summaries.length,
+        });
+      }
+
+      if (!cancelled) setClusterList(areas);
     }
-  }, [params.clusters]);
+
+    loadAreas();
+    return () => { cancelled = true; };
+  }, [db]);
 
   const getActivePreset = () => {
     const diffMs = endDate.getTime() - startDate.getTime();
-    const diffMonths = Math.round(diffMs / (30 * 24 * 60 * 60 * 1000));
-    return PRESETS.find((p) => p.months === diffMonths)?.label ?? null;
+    const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
+    return PRESETS.find((p) => Math.abs(p.days - diffDays) <= 1)?.label ?? null;
   };
 
-  const handlePreset = (months: number) => {
+  const handlePreset = (days: number) => {
     const end = new Date();
-    const start = new Date();
-    start.setMonth(start.getMonth() - months);
+    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
     setStartDate(start);
     setEndDate(end);
     setShowCustomStart(false);
@@ -77,7 +99,6 @@ export default function FilterModal() {
 
   const handleApply = () => {
     router.back();
-    // Use setTimeout to allow modal to dismiss before navigation
     setTimeout(() => {
       router.setParams({
         startDate: startDate.toISOString(),
@@ -96,8 +117,8 @@ export default function FilterModal() {
         styles.container,
         { backgroundColor: colors.background, paddingBottom: insets.bottom },
       ]}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Date Range */}
+      {/* Fixed date range section */}
+      <View style={styles.fixedSection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>
           Date Range
         </Text>
@@ -118,7 +139,7 @@ export default function FilterModal() {
                         : '#f0f0f0',
                   },
                 ]}
-                onPress={() => handlePreset(preset.months)}>
+                onPress={() => handlePreset(preset.days)}>
                 <Text
                   style={[
                     styles.presetText,
@@ -131,7 +152,6 @@ export default function FilterModal() {
           })}
         </View>
 
-        {/* Custom date pickers */}
         <View style={[styles.dateCard, { backgroundColor: cardBg }]}>
           <TouchableOpacity
             style={styles.dateRow}
@@ -199,13 +219,18 @@ export default function FilterModal() {
             />
           )}
         </View>
+      </View>
 
-        {/* Area selection */}
-        {clusterList.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Area
-            </Text>
+      {/* Scrollable area selection */}
+      {clusterList.length > 0 && (
+        <View style={styles.areaSection}>
+          <Text style={[styles.sectionTitle, styles.areaSectionTitle, { color: colors.text }]}>
+            Area
+          </Text>
+          <ScrollView
+            style={styles.areaScroll}
+            contentContainerStyle={styles.areaScrollContent}
+            showsVerticalScrollIndicator={false}>
             <View style={[styles.areaCard, { backgroundColor: cardBg }]}>
               {clusterList.map((cluster, idx) => {
                 const isActive = cluster.id === selectedClusterId;
@@ -242,9 +267,9 @@ export default function FilterModal() {
                 );
               })}
             </View>
-          </>
-        )}
-      </ScrollView>
+          </ScrollView>
+        </View>
+      )}
 
       {/* Apply button */}
       <View style={styles.applyContainer}>
@@ -262,8 +287,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    padding: 20,
+  fixedSection: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  areaSection: {
+    flex: 1,
+    paddingHorizontal: 20,
+    minHeight: 0,
+  },
+  areaSectionTitle: {
+    marginTop: 0,
+  },
+  areaScroll: {
+    flex: 1,
+  },
+  areaScrollContent: {
+    paddingBottom: 8,
   },
   sectionTitle: {
     fontSize: 20,

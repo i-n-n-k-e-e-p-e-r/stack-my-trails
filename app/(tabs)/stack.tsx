@@ -108,10 +108,9 @@ export default function StackScreen() {
         }
         try {
           const address = await mapRef.current!.addressForCoordinate(center);
-          const label =
-            [address.locality, address.administrativeArea]
-              .filter(Boolean)
-              .join(', ') || address.name;
+          const parts = [address.locality, address.administrativeArea]
+              .filter((v) => v && v !== 'null');
+          const label = parts.length > 0 ? parts.join(', ') : address.name || 'Unknown';
           cluster.label = label;
           await setCachedLabel(db, center.latitude, center.longitude, label);
           updated = true;
@@ -134,16 +133,9 @@ export default function StackScreen() {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         clusterId: selectedClusterId ?? '',
-        clusters: JSON.stringify(
-          clusters.map((c) => ({
-            id: c.id,
-            label: c.label ?? 'Unknown',
-            count: c.summaries.length,
-          })),
-        ),
       },
     });
-  }, [router, startDate, endDate, selectedClusterId, clusters]);
+  }, [router, startDate, endDate, selectedClusterId]);
 
   const totalInCluster = selectedCluster?.summaries.length ?? 0;
 
@@ -153,6 +145,7 @@ export default function StackScreen() {
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         mapType="mutedStandard"
+        userInterfaceStyle={colorScheme}
         showsCompass={true}
         showsScale={true}
         pitchEnabled={false}>

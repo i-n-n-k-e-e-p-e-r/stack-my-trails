@@ -12,6 +12,13 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useImportTrails } from '@/hooks/use-import-trails';
 import { getTrailCount, getLastImportDate } from '@/lib/db';
+import { useThemePreference, type ThemePreference } from '@/contexts/theme';
+
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+];
 
 function formatRelativeDate(iso: string): string {
   const d = new Date(iso);
@@ -36,6 +43,7 @@ export default function SettingsScreen() {
   const colorScheme = useColorScheme() ?? 'light';
   const colors = Colors[colorScheme];
   const db = useSQLiteContext();
+  const { preference, setPreference } = useThemePreference();
 
   const { importing, progress, total, error, startImport } = useImportTrails();
   const [trailCount, setTrailCount] = useState(0);
@@ -58,8 +66,43 @@ export default function SettingsScreen() {
       }}>
       <Text style={[styles.screenTitle, { color: colors.text }]}>Settings</Text>
 
-      {/* Import section */}
+      {/* Appearance section */}
       <View style={[styles.card, { backgroundColor: cardBg }]}>
+        <Text style={[styles.cardTitle, { color: colors.text }]}>
+          Appearance
+        </Text>
+        <View style={styles.themeRow}>
+          {THEME_OPTIONS.map((opt) => {
+            const isActive = preference === opt.value;
+            return (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.themeChip,
+                  {
+                    backgroundColor: isActive
+                      ? colors.tint
+                      : colorScheme === 'dark'
+                        ? '#2a2d2e'
+                        : '#e8e8e8',
+                  },
+                ]}
+                onPress={() => setPreference(opt.value)}>
+                <Text
+                  style={[
+                    styles.themeChipText,
+                    { color: isActive ? '#fff' : colors.text },
+                  ]}>
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Import section */}
+      <View style={[styles.card, { backgroundColor: cardBg, marginTop: 16 }]}>
         <Text style={[styles.cardTitle, { color: colors.text }]}>
           Health Data
         </Text>
@@ -156,6 +199,20 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     marginBottom: 12,
+  },
+  themeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  themeChip: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  themeChipText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   statRow: {
     flexDirection: 'row',

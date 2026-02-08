@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Trail, TrailSummary, Coordinate } from './geo';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 export async function initDatabase(db: SQLiteDatabase) {
   await db.execAsync(`
@@ -46,6 +46,15 @@ export async function initDatabase(db: SQLiteDatabase) {
       ALTER TABLE trails ADD COLUMN weather_condition INTEGER;
     `)
       .catch(() => {});
+  }
+
+  if (currentVersion < 3) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
+    `);
   }
 
   if (currentVersion === 0) {
@@ -202,6 +211,31 @@ export async function getLastImportDate(
     'SELECT imported_at FROM trails ORDER BY imported_at DESC LIMIT 1',
   );
   return result?.imported_at ?? null;
+}
+
+// ---------- Settings ----------
+
+export async function getSetting(
+  db: SQLiteDatabase,
+  key: string,
+): Promise<string | null> {
+  const result = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM settings WHERE key = ?',
+    key,
+  );
+  return result?.value ?? null;
+}
+
+export async function setSetting(
+  db: SQLiteDatabase,
+  key: string,
+  value: string,
+) {
+  await db.runAsync(
+    'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+    key,
+    value,
+  );
 }
 
 // ---------- Label cache ----------
