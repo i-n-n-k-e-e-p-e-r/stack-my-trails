@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import type { Trail, TrailSummary, Coordinate, BoundingBox } from './geo';
 
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 export async function initDatabase(db: SQLiteDatabase) {
   await db.execAsync(`
@@ -73,6 +73,12 @@ export async function initDatabase(db: SQLiteDatabase) {
     await db.execAsync(`DELETE FROM cluster_labels`);
   }
 
+  if (currentVersion < 7) {
+    await db
+      .execAsync(`ALTER TABLE trails ADD COLUMN location_label TEXT`)
+      .catch(() => {});
+  }
+
   if (currentVersion === 0) {
     await db.runAsync(
       'INSERT INTO schema_version (version) VALUES (?)',
@@ -83,13 +89,16 @@ export async function initDatabase(db: SQLiteDatabase) {
   }
 }
 
-export async function upsertTrail(db: SQLiteDatabase, trail: Trail) {
+export async function upsertTrail(
+  db: SQLiteDatabase,
+  trail: Trail & { locationLabel?: string | null },
+) {
   await db.runAsync(
     `INSERT OR REPLACE INTO trails
       (workout_id, activity_type, start_date, end_date, duration, coordinates,
        bbox_min_lat, bbox_max_lat, bbox_min_lng, bbox_max_lng,
-       temperature, weather_condition, imported_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       temperature, weather_condition, location_label, imported_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     trail.workoutId,
     trail.activityType,
     trail.startDate,
@@ -102,6 +111,7 @@ export async function upsertTrail(db: SQLiteDatabase, trail: Trail) {
     trail.boundingBox.maxLng,
     trail.temperature ?? null,
     trail.weatherCondition ?? null,
+    trail.locationLabel ?? null,
     new Date().toISOString(),
   );
 }
@@ -120,11 +130,12 @@ interface SummaryRow {
   bbox_max_lng: number;
   temperature: number | null;
   weather_condition: number | null;
+  location_label: string | null;
 }
 
 const SUMMARY_COLS = `workout_id, activity_type, start_date, end_date, duration,
   bbox_min_lat, bbox_max_lat, bbox_min_lng, bbox_max_lng,
-  temperature, weather_condition`;
+  temperature, weather_condition, location_label`;
 
 function rowToSummary(row: SummaryRow): TrailSummary {
   return {
@@ -141,6 +152,7 @@ function rowToSummary(row: SummaryRow): TrailSummary {
     },
     temperature: row.temperature,
     weatherCondition: row.weather_condition,
+    locationLabel: row.location_label,
   };
 }
 
@@ -166,6 +178,46 @@ export async function getTrailSummaries(
      ORDER BY start_date DESC`,
     startDate.toISOString(),
     endDate.toISOString(),
+  );
+  return rows.map(rowToSummary);
+}
+
+/** Load trail summaries by label within a date range. */
+export async function getTrailSummariesByLabel(
+  db: SQLiteDatabase,
+  startDate: Date,
+  endDate: Date,
+  label: string,
+): Promise<TrailSummary[]> {
+  const rows = await db.getAllAsync<SummaryRow>(
+    `SELECT ${SUMMARY_COLS} FROM trails
+     WHERE start_date >= ? AND start_date <= ?
+       AND location_label = ?
+     ORDER BY start_date DESC`,
+    startDate.toISOString(),
+    endDate.toISOString(),
+    label,
+  );
+  return rows.map(rowToSummary);
+}
+
+/** Load trail summaries by multiple labels within a date range. */
+export async function getTrailSummariesByLabels(
+  db: SQLiteDatabase,
+  startDate: Date,
+  endDate: Date,
+  labels: string[],
+): Promise<TrailSummary[]> {
+  if (labels.length === 0) return [];
+  const placeholders = labels.map(() => '?').join(',');
+  const rows = await db.getAllAsync<SummaryRow>(
+    `SELECT ${SUMMARY_COLS} FROM trails
+     WHERE start_date >= ? AND start_date <= ?
+       AND location_label IN (${placeholders})
+     ORDER BY start_date DESC`,
+    startDate.toISOString(),
+    endDate.toISOString(),
+    ...labels,
   );
   return rows.map(rowToSummary);
 }

@@ -5,14 +5,16 @@ import {
   queryWorkoutSamples,
 } from '@kingstinct/react-native-healthkit';
 import { WorkoutActivityType } from '@kingstinct/react-native-healthkit/types';
-import { computeBoundingBox, filterGpsOutliers, simplifyCoordinates, type TimedCoordinate } from '@/lib/geo';
+import { computeBoundingBox, filterGpsOutliers, simplifyCoordinates, bboxCenter, type TimedCoordinate } from '@/lib/geo';
 import { upsertTrail } from '@/lib/db';
+import { resolveLabel } from '@/lib/geocode';
 
 const ACTIVITY_TYPES = [
   WorkoutActivityType.running,
   WorkoutActivityType.walking,
   WorkoutActivityType.cycling,
   WorkoutActivityType.hiking,
+  WorkoutActivityType.swimming,
 ];
 
 interface UseImportTrailsResult {
@@ -78,6 +80,12 @@ export function useImportTrails(): UseImportTrailsResult {
             const weatherCondition =
               workout.metadataWeatherCondition ?? null;
 
+            const boundingBox = computeBoundingBox(coordinates);
+            const locationLabel = await resolveLabel(
+              db,
+              bboxCenter(boundingBox),
+            );
+
             await upsertTrail(db, {
               workoutId: workout.uuid,
               activityType: workout.workoutActivityType,
@@ -85,9 +93,10 @@ export function useImportTrails(): UseImportTrailsResult {
               endDate: workout.endDate.toISOString(),
               duration: workout.duration.quantity,
               coordinates,
-              boundingBox: computeBoundingBox(coordinates),
+              boundingBox,
               temperature,
               weatherCondition,
+              locationLabel,
             });
           }
         } catch {

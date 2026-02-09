@@ -8,7 +8,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { getTrailCount } from '@/lib/db';
 import { useTrails } from '@/hooks/use-trails';
-import type { BoundingBox, Trail } from '@/lib/geo';
+import type { Trail } from '@/lib/geo';
 
 const TRAIL_WIDTH = 3;
 
@@ -30,7 +30,7 @@ export default function StackScreen() {
   const params = useLocalSearchParams<{
     startDate?: string;
     endDate?: string;
-    bbox?: string;
+    areaLabels?: string;
     areaLabel?: string;
   }>();
 
@@ -40,24 +40,26 @@ export default function StackScreen() {
     return d;
   });
   const [endDate, setEndDate] = useState(() => new Date());
-  const [filterBbox, setFilterBbox] = useState<BoundingBox | null>(null);
+  const [filterLabels, setFilterLabels] = useState<string[] | null>(null);
   const [areaLabel, setAreaLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.startDate) setStartDate(new Date(params.startDate));
     if (params.endDate) setEndDate(new Date(params.endDate));
-    if (params.bbox) {
+    if (params.areaLabels) {
       try {
-        setFilterBbox(JSON.parse(params.bbox));
+        setFilterLabels(JSON.parse(params.areaLabels));
       } catch {}
+    } else {
+      setFilterLabels(null);
     }
     if (params.areaLabel) setAreaLabel(params.areaLabel);
-  }, [params.startDate, params.endDate, params.bbox, params.areaLabel]);
+  }, [params.startDate, params.endDate, params.areaLabels, params.areaLabel]);
 
   const { clusters, loading, loadClusterTrails } = useTrails({
     startDate,
     endDate,
-    bbox: filterBbox,
+    labels: filterLabels,
   });
 
   const selectedCluster = useMemo(
@@ -105,11 +107,11 @@ export default function StackScreen() {
       params: {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        bbox: filterBbox ? JSON.stringify(filterBbox) : '',
+        areaLabels: filterLabels ? JSON.stringify(filterLabels) : '',
         areaLabel: areaLabel ?? '',
       },
     });
-  }, [router, startDate, endDate, filterBbox, areaLabel]);
+  }, [router, startDate, endDate, filterLabels, areaLabel]);
 
   const totalInCluster = selectedCluster?.summaries.length ?? 0;
 

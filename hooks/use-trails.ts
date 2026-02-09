@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
 import {
   getTrailSummaries,
-  getTrailSummariesInArea,
+  getTrailSummariesByLabels,
   getTrailsByIds,
 } from '@/lib/db';
 import {
   clusterTrails,
-  type BoundingBox,
+  computeBoundingBox,
   type TrailCluster,
   type Trail,
 } from '@/lib/geo';
@@ -17,7 +17,7 @@ const MAX_RENDERED_TRAILS = 50;
 interface UseTrailsOptions {
   startDate: Date;
   endDate: Date;
-  bbox?: BoundingBox | null;
+  labels?: string[] | null;
 }
 
 interface UseTrailsResult {
@@ -32,7 +32,7 @@ interface UseTrailsResult {
 export function useTrails({
   startDate,
   endDate,
-  bbox,
+  labels,
 }: UseTrailsOptions): UseTrailsResult {
   const db = useSQLiteContext();
   const [clusters, setClusters] = useState<TrailCluster[]>([]);
@@ -42,9 +42,7 @@ export function useTrails({
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  const bboxKey = bbox
-    ? `${bbox.minLat},${bbox.maxLat},${bbox.minLng},${bbox.maxLng}`
-    : '';
+  const labelsKey = labels ? labels.join('\0') : '';
 
   useEffect(() => {
     let cancelled = false;
@@ -54,13 +52,20 @@ export function useTrails({
       setError(null);
 
       try {
-        const summaries = bbox
-          ? await getTrailSummariesInArea(db, startDate, endDate, bbox)
+        const summaries = labels && labels.length > 0
+          ? await getTrailSummariesByLabels(db, startDate, endDate, labels)
           : await getTrailSummaries(db, startDate, endDate);
         if (cancelled) return;
 
-        if (bbox) {
-          // When bbox is provided, put all matching trails in one cluster
+        if (labels && labels.length > 0) {
+          // When labels are provided, put all matching trails in one cluster
+          const bboxCoords = summaries.flatMap((s) => [
+            { latitude: s.boundingBox.minLat, longitude: s.boundingBox.minLng },
+            { latitude: s.boundingBox.maxLat, longitude: s.boundingBox.maxLng },
+          ]);
+          const bbox = bboxCoords.length > 0
+            ? computeBoundingBox(bboxCoords)
+            : { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 };
           const cluster: TrailCluster = {
             id: 'filtered',
             trailIds: summaries.map((s) => s.workoutId),
@@ -85,7 +90,7 @@ export function useTrails({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, startDate.getTime(), endDate.getTime(), bboxKey, refreshKey]);
+  }, [db, startDate.getTime(), endDate.getTime(), labelsKey, refreshKey]);
 
   const loadClusterTrails = useCallback(
     async (cluster: TrailCluster): Promise<Trail[]> => {

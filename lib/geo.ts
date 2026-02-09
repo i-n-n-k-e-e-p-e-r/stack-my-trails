@@ -199,6 +199,7 @@ export interface TrailSummary {
   boundingBox: BoundingBox;
   temperature?: number | null;
   weatherCondition?: number | null;
+  locationLabel?: string | null;
 }
 
 /** Full trail with coordinates — only load when needed for map display. */

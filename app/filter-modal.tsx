@@ -15,13 +15,7 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { getAllTrailSummaries } from '@/lib/db';
-import { resolveLabel } from '@/lib/geocode';
-import {
-  clusterTrails,
-  groupClustersByProximity,
-  bboxCenter,
-  type BoundingBox,
-} from '@/lib/geo';
+import type { TrailSummary } from '@/lib/geo';
 
 const PRESETS = [
   { label: '1D', days: 1 },
@@ -34,45 +28,78 @@ const PRESETS = [
 
 interface SubArea {
   label: string;
+  fullLabel: string;
   count: number;
-  bbox: BoundingBox;
-  trailIds: string[];
+  labels: string[];
 }
 
 interface AreaGroup {
   label: string;
   subAreas: SubArea[];
   totalCount: number;
-  bbox: BoundingBox;
-  trailIds: string[];
+  allLabels: string[];
 }
 
-function extractGroupLabel(subLabels: string[]): string {
-  if (subLabels.length <= 1) return subLabels[0] ?? 'Unknown';
-
-  // Find common suffix after ", " (e.g., "Moscow" from "Khovrino, Moscow")
-  const suffixes = subLabels.map((l) => {
-    const idx = l.lastIndexOf(', ');
-    return idx >= 0 ? l.substring(idx + 2) : l;
-  });
-
-  const counts = new Map<string, number>();
-  for (const s of suffixes) counts.set(s, (counts.get(s) ?? 0) + 1);
-
-  let best = suffixes[0];
-  let bestCount = 0;
-  for (const [s, c] of counts) {
-    if (c > bestCount) {
-      best = s;
-      bestCount = c;
-    }
-  }
-  return best;
+function extractCity(label: string): string {
+  const idx = label.lastIndexOf(', ');
+  return idx >= 0 ? label.substring(idx + 2) : label;
 }
 
 function extractLocality(label: string): string {
   const idx = label.lastIndexOf(', ');
   return idx >= 0 ? label.substring(0, idx) : label;
+}
+
+function buildAreaGroups(summaries: TrailSummary[]): AreaGroup[] {
+  // Group trails by their stored label
+  const byLabel = new Map<string, number>();
+  for (const s of summaries) {
+    const label = s.locationLabel || 'Unknown';
+    byLabel.set(label, (byLabel.get(label) ?? 0) + 1);
+  }
+
+  // Group labels by city (suffix after last comma)
+  const cityMap = new Map<string, { label: string; count: number }[]>();
+  for (const [label, count] of byLabel) {
+    const city = extractCity(label);
+    if (!cityMap.has(city)) cityMap.set(city, []);
+    cityMap.get(city)!.push({ label, count });
+  }
+
+  const result: AreaGroup[] = [];
+  for (const [city, entries] of cityMap) {
+    // Merge entries with the same locality name
+    const localityMap = new Map<
+      string,
+      { count: number; labels: string[] }
+    >();
+    for (const e of entries) {
+      const locality = extractLocality(e.label);
+      const existing = localityMap.get(locality);
+      if (existing) {
+        existing.count += e.count;
+        existing.labels.push(e.label);
+      } else {
+        localityMap.set(locality, { count: e.count, labels: [e.label] });
+      }
+    }
+
+    const subAreas: SubArea[] = [...localityMap.entries()]
+      .map(([locality, data]) => ({
+        label: locality,
+        fullLabel: locality === city ? city : `${locality}, ${city}`,
+        count: data.count,
+        labels: data.labels,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    const totalCount = subAreas.reduce((s, a) => s + a.count, 0);
+    const allLabels = entries.map((e) => e.label);
+
+    result.push({ label: city, subAreas, totalCount, allLabels });
+  }
+
+  return result.sort((a, b) => b.totalCount - a.totalCount);
 }
 
 export default function FilterModal() {
@@ -84,7 +111,7 @@ export default function FilterModal() {
   const params = useLocalSearchParams<{
     startDate?: string;
     endDate?: string;
-    bbox?: string;
+    areaLabels?: string;
     areaLabel?: string;
   }>();
 
@@ -96,15 +123,15 @@ export default function FilterModal() {
   const [endDate, setEndDate] = useState(
     params.endDate ? new Date(params.endDate) : new Date(),
   );
-  const [selectedBbox, setSelectedBbox] = useState<BoundingBox | null>(() => {
-    if (params.bbox) {
+  const [selectedLabels, setSelectedLabels] = useState<string[]>(() => {
+    if (params.areaLabels) {
       try {
-        return JSON.parse(params.bbox);
+        return JSON.parse(params.areaLabels);
       } catch {}
     }
-    return null;
+    return [];
   });
-  const [selectedLabel, setSelectedLabel] = useState<string>(
+  const [selectedDisplayLabel, setSelectedDisplayLabel] = useState<string>(
     params.areaLabel ?? '',
   );
   const [showCustomStart, setShowCustomStart] = useState(false);
@@ -118,72 +145,18 @@ export default function FilterModal() {
 
     async function loadAreas() {
       const summaries = await getAllTrailSummaries(db);
-      // Fine-grained clusters (5km)
-      const clusters = clusterTrails(summaries);
-
-      // Resolve labels (cache → reverse geocode fallback)
-      for (const cluster of clusters) {
-        if (cancelled) return;
-        const center = bboxCenter(cluster.boundingBox);
-        cluster.label = await resolveLabel(db, center);
-      }
-
-      // City-level groups (centroid-based, 20km, no chaining)
-      const groups = groupClustersByProximity(clusters, 20);
-
-      const result: AreaGroup[] = groups.map((group) => {
-        const labels = group.clusters.map((c) => c.label!);
-        const groupLabel = extractGroupLabel(labels);
-
-        // Build sub-areas, merging clusters with the same locality
-        const subMap = new Map<string, SubArea>();
-        for (const c of group.clusters) {
-          const locality = extractLocality(c.label!);
-          const existing = subMap.get(locality);
-          if (existing) {
-            existing.count += c.summaries.length;
-            existing.trailIds.push(...c.trailIds);
-            existing.bbox = {
-              minLat: Math.min(existing.bbox.minLat, c.boundingBox.minLat),
-              maxLat: Math.max(existing.bbox.maxLat, c.boundingBox.maxLat),
-              minLng: Math.min(existing.bbox.minLng, c.boundingBox.minLng),
-              maxLng: Math.max(existing.bbox.maxLng, c.boundingBox.maxLng),
-            };
-          } else {
-            subMap.set(locality, {
-              label: locality,
-              count: c.summaries.length,
-              bbox: { ...c.boundingBox },
-              trailIds: [...c.trailIds],
-            });
-          }
-        }
-
-        const subAreas = [...subMap.values()].sort(
-          (a, b) => b.count - a.count,
-        );
-
-        return {
-          label: groupLabel,
-          subAreas,
-          totalCount: group.totalCount,
-          bbox: group.boundingBox,
-          trailIds: group.clusters.flatMap((c) => c.trailIds),
-        };
-      });
-
       if (cancelled) return;
-      setAreaGroups(result);
+      setAreaGroups(buildAreaGroups(summaries));
       setLoadingAreas(false);
 
       // Auto-expand group containing selected area
-      if (selectedBbox) {
-        for (let i = 0; i < result.length; i++) {
-          const g = result[i];
-          const match =
-            bboxEqual(selectedBbox, g.bbox) ||
-            g.subAreas.some((s) => bboxEqual(selectedBbox, s.bbox));
-          if (match) {
+      if (selectedLabels.length > 0) {
+        const groups = buildAreaGroups(summaries);
+        for (let i = 0; i < groups.length; i++) {
+          const hasMatch = groups[i].allLabels.some((l) =>
+            selectedLabels.includes(l),
+          );
+          if (hasMatch) {
             setExpandedGroups(new Set([i]));
             break;
           }
@@ -213,9 +186,9 @@ export default function FilterModal() {
     setShowCustomEnd(false);
   };
 
-  const selectArea = (bbox: BoundingBox, label: string) => {
-    setSelectedBbox(bbox);
-    setSelectedLabel(label);
+  const selectArea = (labels: string[], displayLabel: string) => {
+    setSelectedLabels(labels);
+    setSelectedDisplayLabel(displayLabel);
   };
 
   const handleApply = () => {
@@ -224,8 +197,8 @@ export default function FilterModal() {
       router.setParams({
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        bbox: selectedBbox ? JSON.stringify(selectedBbox) : '',
-        areaLabel: selectedLabel,
+        areaLabels: JSON.stringify(selectedLabels),
+        areaLabel: selectedDisplayLabel,
       });
     }, 100);
   };
@@ -237,6 +210,11 @@ export default function FilterModal() {
       else next.add(idx);
       return next;
     });
+  };
+
+  const labelsMatch = (a: string[], b: string[]): boolean => {
+    if (a.length !== b.length) return false;
+    return a.every((l) => b.includes(l));
   };
 
   const activePreset = getActivePreset();
@@ -375,17 +353,16 @@ export default function FilterModal() {
               {areaGroups.map((group, gIdx) => {
                 const hasSubs = group.subAreas.length > 1;
                 const isExpanded = expandedGroups.has(gIdx);
-                const groupSelected = bboxEqual(selectedBbox, group.bbox);
+                const groupSelected = labelsMatch(
+                  selectedLabels,
+                  group.allLabels,
+                );
                 const isLast = gIdx === areaGroups.length - 1;
 
-                // Single sub-area: flat row with full label
+                // Single sub-area: flat row
                 if (!hasSubs) {
                   const sub = group.subAreas[0];
-                  const fullLabel =
-                    sub.label === group.label
-                      ? group.label
-                      : `${sub.label}, ${group.label}`;
-                  const isActive = bboxEqual(selectedBbox, sub.bbox);
+                  const isActive = labelsMatch(selectedLabels, sub.labels);
 
                   return (
                     <TouchableOpacity
@@ -397,7 +374,7 @@ export default function FilterModal() {
                           borderBottomColor: borderCol,
                         },
                       ]}
-                      onPress={() => selectArea(sub.bbox, fullLabel)}>
+                      onPress={() => selectArea(sub.labels, sub.fullLabel)}>
                       <View
                         style={[
                           styles.radio,
@@ -412,7 +389,7 @@ export default function FilterModal() {
                       <Text
                         style={[styles.areaLabel, { color: colors.text }]}
                         numberOfLines={1}>
-                        {fullLabel}
+                        {sub.fullLabel}
                       </Text>
                       <Text style={[styles.areaCount, { color: colors.icon }]}>
                         {sub.count}
@@ -434,7 +411,7 @@ export default function FilterModal() {
                           },
                       ]}
                       onPress={() => {
-                        selectArea(group.bbox, group.label);
+                        selectArea(group.allLabels, group.label);
                         toggleGroup(gIdx);
                       }}>
                       <View
@@ -468,13 +445,16 @@ export default function FilterModal() {
 
                     {isExpanded &&
                       group.subAreas.map((sub, sIdx) => {
-                        const subSelected = bboxEqual(selectedBbox, sub.bbox);
+                        const subSelected = labelsMatch(
+                          selectedLabels,
+                          sub.labels,
+                        );
                         const subIsLast =
                           sIdx === group.subAreas.length - 1 && isLast;
 
                         return (
                           <TouchableOpacity
-                            key={sub.label}
+                            key={sIdx}
                             style={[
                               styles.areaRow,
                               styles.subAreaRow,
@@ -484,10 +464,7 @@ export default function FilterModal() {
                               },
                             ]}
                             onPress={() =>
-                              selectArea(
-                                sub.bbox,
-                                `${sub.label}, ${group.label}`,
-                              )
+                              selectArea(sub.labels, sub.fullLabel)
                             }>
                             <View
                               style={[
@@ -534,16 +511,6 @@ export default function FilterModal() {
         </TouchableOpacity>
       </View>
     </View>
-  );
-}
-
-function bboxEqual(a: BoundingBox | null, b: BoundingBox): boolean {
-  if (!a) return false;
-  return (
-    a.minLat === b.minLat &&
-    a.maxLat === b.maxLat &&
-    a.minLng === b.minLng &&
-    a.maxLng === b.maxLng
   );
 }
 

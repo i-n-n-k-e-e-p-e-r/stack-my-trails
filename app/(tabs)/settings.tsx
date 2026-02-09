@@ -221,8 +221,8 @@ export default function SettingsScreen() {
         )}
 
         <Text style={[styles.importHint, { color: colors.icon }]}>
-          Imports running, walking, cycling, and hiking workouts with GPS routes
-          from Apple Health.
+          Imports running, walking, cycling, hiking, and open water swimming
+          workouts with GPS routes from Apple Health.
         </Text>
 
         {trailCount > 0 && (

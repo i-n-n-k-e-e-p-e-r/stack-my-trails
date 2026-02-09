@@ -25,6 +25,7 @@ const ACTIVITY_LABELS: Record<number, string> = {
   13: "Cycling",
   24: "Hiking",
   37: "Running",
+  46: "Swimming",
   52: "Walking",
 };
 
@@ -32,6 +33,7 @@ const ACTIVITY_ICONS: Record<number, string> = {
   13: "\u{1F6B2}",
   24: "\u{26F0}",
   37: "\u{1F3C3}",
+  46: "\u{1F3CA}",
   52: "\u{1F6B6}",
 };
 
