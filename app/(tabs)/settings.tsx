@@ -1,17 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
   Text,
   TouchableOpacity,
   ScrollView,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { useImportTrails } from '@/hooks/use-import-trails';
-import { getTrailCount, getLastImportDate } from '@/lib/db';
+import { getTrailCount, getLastImportDate, getLatestTrailDate, deleteAllTrails } from '@/lib/db';
 import { useThemePreference, type ThemePreference } from '@/contexts/theme';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -48,11 +49,40 @@ export default function SettingsScreen() {
   const { importing, progress, total, error, startImport } = useImportTrails();
   const [trailCount, setTrailCount] = useState(0);
   const [lastImport, setLastImport] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
+  const refreshStats = useCallback(() => {
     getTrailCount(db).then(setTrailCount);
     getLastImportDate(db).then(setLastImport);
-  }, [db, importing]);
+  }, [db]);
+
+  useEffect(() => {
+    refreshStats();
+  }, [refreshStats, importing, deleting]);
+
+  const handleFetchNew = useCallback(async () => {
+    const latest = await getLatestTrailDate(db);
+    startImport(latest);
+  }, [db, startImport]);
+
+  const handleDeleteAll = useCallback(() => {
+    Alert.alert(
+      'Delete All Data',
+      'This will remove all imported trails and cached labels. You will need to re-import from Health.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            await deleteAllTrails(db);
+            setDeleting(false);
+          },
+        },
+      ],
+    );
+  }, [db]);
 
   const cardBg = colorScheme === 'dark' ? '#1c1e1f' : '#f5f5f5';
   const borderColor = colorScheme === 'dark' ? '#2a2d2e' : '#e5e5e5';
@@ -160,21 +190,51 @@ export default function SettingsScreen() {
               opacity: importing ? 0.6 : 1,
             },
           ]}
-          onPress={startImport}
+          onPress={() => startImport()}
           disabled={importing}>
           <Text style={styles.importButtonText}>
             {importing
               ? 'Importing...'
               : trailCount > 0
-                ? 'Refresh Data'
+                ? 'Re-import All'
                 : 'Import from Health'}
           </Text>
         </TouchableOpacity>
+
+        {trailCount > 0 && (
+          <TouchableOpacity
+            style={[
+              styles.importButton,
+              {
+                backgroundColor: 'transparent',
+                borderWidth: 1.5,
+                borderColor: colors.tint,
+                opacity: importing ? 0.6 : 1,
+              },
+            ]}
+            onPress={handleFetchNew}
+            disabled={importing}>
+            <Text style={[styles.importButtonText, { color: colors.tint }]}>
+              Fetch New Routes
+            </Text>
+          </TouchableOpacity>
+        )}
 
         <Text style={[styles.importHint, { color: colors.icon }]}>
           Imports running, walking, cycling, and hiking workouts with GPS routes
           from Apple Health.
         </Text>
+
+        {trailCount > 0 && (
+          <TouchableOpacity
+            style={[styles.deleteButton, { opacity: importing || deleting ? 0.6 : 1 }]}
+            onPress={handleDeleteAll}
+            disabled={importing || deleting}>
+            <Text style={styles.deleteButtonText}>
+              {deleting ? 'Deleting...' : 'Delete All Data'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -266,5 +326,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 10,
     lineHeight: 16,
+  },
+  deleteButton: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+  },
+  deleteButtonText: {
+    color: '#ff3b30',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

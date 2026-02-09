@@ -1,13 +1,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
-import { getTrailSummaries, getTrailsByIds } from '@/lib/db';
-import { clusterTrails, type TrailCluster, type Trail } from '@/lib/geo';
+import {
+  getTrailSummaries,
+  getTrailSummariesInArea,
+  getTrailsByIds,
+} from '@/lib/db';
+import {
+  clusterTrails,
+  type BoundingBox,
+  type TrailCluster,
+  type Trail,
+} from '@/lib/geo';
 
 const MAX_RENDERED_TRAILS = 50;
 
 interface UseTrailsOptions {
   startDate: Date;
   endDate: Date;
+  bbox?: BoundingBox | null;
 }
 
 interface UseTrailsResult {
@@ -22,6 +32,7 @@ interface UseTrailsResult {
 export function useTrails({
   startDate,
   endDate,
+  bbox,
 }: UseTrailsOptions): UseTrailsResult {
   const db = useSQLiteContext();
   const [clusters, setClusters] = useState<TrailCluster[]>([]);
@@ -31,6 +42,10 @@ export function useTrails({
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
+  const bboxKey = bbox
+    ? `${bbox.minLat},${bbox.maxLat},${bbox.minLng},${bbox.maxLng}`
+    : '';
+
   useEffect(() => {
     let cancelled = false;
 
@@ -39,12 +54,23 @@ export function useTrails({
       setError(null);
 
       try {
-        // Load summaries only — no coordinates, very fast
-        const summaries = await getTrailSummaries(db, startDate, endDate);
+        const summaries = bbox
+          ? await getTrailSummariesInArea(db, startDate, endDate, bbox)
+          : await getTrailSummaries(db, startDate, endDate);
         if (cancelled) return;
 
-        const result = clusterTrails(summaries);
-        setClusters(result);
+        if (bbox) {
+          // When bbox is provided, put all matching trails in one cluster
+          const cluster: TrailCluster = {
+            id: 'filtered',
+            trailIds: summaries.map((s) => s.workoutId),
+            summaries,
+            boundingBox: bbox,
+          };
+          setClusters(summaries.length > 0 ? [cluster] : []);
+        } else {
+          setClusters(clusterTrails(summaries));
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : 'Failed to load trails');
@@ -58,11 +84,11 @@ export function useTrails({
     return () => {
       cancelled = true;
     };
-  }, [db, startDate.getTime(), endDate.getTime(), refreshKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, startDate.getTime(), endDate.getTime(), bboxKey, refreshKey]);
 
   const loadClusterTrails = useCallback(
     async (cluster: TrailCluster): Promise<Trail[]> => {
-      // Only load coordinates for up to MAX_RENDERED_TRAILS
       const ids = cluster.trailIds.slice(0, MAX_RENDERED_TRAILS);
       return getTrailsByIds(db, ids);
     },

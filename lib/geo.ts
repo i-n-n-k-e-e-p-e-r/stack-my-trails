@@ -50,6 +50,83 @@ export function haversineKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+export interface TimedCoordinate extends Coordinate {
+  timestamp: number;
+}
+
+/**
+ * Remove GPS outliers caused by spoofing/jamming.
+ * Uses timestamps for speed-based filtering — physically impossible speeds
+ * between consecutive points indicate spoofed data.
+ *
+ * 1. Speed filter: skip points requiring impossible speed from the last good point
+ * 2. Median filter: remove remaining points far from the trail center
+ */
+export function filterGpsOutliers(coords: TimedCoordinate[]): Coordinate[] {
+  if (coords.length < 5) return coords;
+
+  // Stage 1: adaptive speed filter
+  // Compute median speed from all consecutive pairs
+  const speeds: number[] = [];
+  for (let i = 1; i < coords.length; i++) {
+    const dtH = (coords[i].timestamp - coords[i - 1].timestamp) / 3_600_000;
+    if (dtH <= 0) continue;
+    const dist = haversineKm(
+      coords[i - 1].latitude,
+      coords[i - 1].longitude,
+      coords[i].latitude,
+      coords[i].longitude,
+    );
+    speeds.push(dist / dtH);
+  }
+
+  const sortedSpeeds = [...speeds].sort((a, b) => a - b);
+  const medianSpeed = sortedSpeeds[Math.floor(sortedSpeeds.length / 2)] || 5;
+  // Allow 5× median speed (generous for turns, hills) but at least 15 km/h
+  const maxSpeed = Math.max(medianSpeed * 5, 15);
+
+  // Forward pass: keep a point only if it's reachable at maxSpeed from the
+  // last accepted point
+  let filtered: Coordinate[] = [coords[0]];
+  let lastGood = coords[0];
+  for (let i = 1; i < coords.length; i++) {
+    const dtH = (coords[i].timestamp - lastGood.timestamp) / 3_600_000;
+    if (dtH <= 0) continue;
+    const dist = haversineKm(
+      lastGood.latitude,
+      lastGood.longitude,
+      coords[i].latitude,
+      coords[i].longitude,
+    );
+    if (dist / dtH <= maxSpeed) {
+      filtered.push(coords[i]);
+      lastGood = coords[i];
+    }
+  }
+
+  // Stage 2: iterative median filter to clean remaining drift
+  for (let pass = 0; pass < 3; pass++) {
+    if (filtered.length < 10) break;
+    const lats = filtered.map((c) => c.latitude).sort((a, b) => a - b);
+    const lngs = filtered.map((c) => c.longitude).sort((a, b) => a - b);
+    const medLat = lats[Math.floor(lats.length / 2)];
+    const medLng = lngs[Math.floor(lngs.length / 2)];
+
+    const distances = filtered.map((c) =>
+      haversineKm(c.latitude, c.longitude, medLat, medLng),
+    );
+    const sorted = [...distances].sort((a, b) => a - b);
+    const medianDist = sorted[Math.floor(sorted.length / 2)];
+    const threshold = Math.max(medianDist * 3, 0.3);
+
+    const next = filtered.filter((_, i) => distances[i] <= threshold);
+    if (next.length === filtered.length || next.length < 5) break;
+    filtered = next;
+  }
+
+  return filtered;
+}
+
 /** Douglas-Peucker line simplification. Reduces coordinate count by 80-90%. */
 export function simplifyCoordinates(
   coords: Coordinate[],
@@ -135,6 +212,76 @@ export interface TrailCluster {
   summaries: TrailSummary[];
   boundingBox: BoundingBox;
   label?: string;
+}
+
+export interface ClusterGroup {
+  id: string;
+  clusters: TrailCluster[];
+  boundingBox: BoundingBox;
+  totalCount: number;
+}
+
+/**
+ * Groups clusters by proximity using centroid-seeded grouping.
+ * Unlike union-find, this prevents chaining distant areas through intermediates.
+ * The largest ungrouped cluster seeds each group; others join if within maxDistKm
+ * of that seed's center.
+ */
+export function groupClustersByProximity(
+  clusters: TrailCluster[],
+  maxDistKm: number = 20,
+): ClusterGroup[] {
+  if (clusters.length === 0) return [];
+
+  // Sort by size (most trails first) — largest seeds the group
+  const sorted = [...clusters].sort(
+    (a, b) => b.summaries.length - a.summaries.length,
+  );
+  const assigned = new Set<number>();
+  const result: ClusterGroup[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    if (assigned.has(i)) continue;
+
+    // Seed a new group with this cluster's center
+    const seedCenter = bboxCenter(sorted[i].boundingBox);
+    const group: TrailCluster[] = [sorted[i]];
+    assigned.add(i);
+
+    // Pull in all unassigned clusters within maxDistKm of the seed center
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (assigned.has(j)) continue;
+      const jCenter = bboxCenter(sorted[j].boundingBox);
+      if (
+        haversineKm(
+          seedCenter.latitude,
+          seedCenter.longitude,
+          jCenter.latitude,
+          jCenter.longitude,
+        ) <= maxDistKm
+      ) {
+        group.push(sorted[j]);
+        assigned.add(j);
+      }
+    }
+
+    const unionBbox: BoundingBox = {
+      minLat: Math.min(...group.map((c) => c.boundingBox.minLat)),
+      maxLat: Math.max(...group.map((c) => c.boundingBox.maxLat)),
+      minLng: Math.min(...group.map((c) => c.boundingBox.minLng)),
+      maxLng: Math.max(...group.map((c) => c.boundingBox.maxLng)),
+    };
+
+    result.push({
+      id: group[0].id,
+      clusters: group,
+      boundingBox: unionBbox,
+      totalCount: group.reduce((sum, c) => sum + c.summaries.length, 0),
+    });
+  }
+
+  result.sort((a, b) => b.totalCount - a.totalCount);
+  return result;
 }
 
 /** Clusters trail summaries by geographic proximity. No coordinates needed. */

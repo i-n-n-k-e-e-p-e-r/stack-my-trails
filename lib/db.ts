@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Trail, TrailSummary, Coordinate } from './geo';
+import type { Trail, TrailSummary, Coordinate, BoundingBox } from './geo';
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 6;
 
 export async function initDatabase(db: SQLiteDatabase) {
   await db.execAsync(`
@@ -55,6 +55,22 @@ export async function initDatabase(db: SQLiteDatabase) {
         value TEXT NOT NULL
       );
     `);
+  }
+
+  if (currentVersion < 4) {
+    await db.execAsync(
+      `DELETE FROM cluster_labels WHERE label LIKE '%null%'`,
+    );
+  }
+
+  if (currentVersion < 5) {
+    // Clear labels with duplicate segments (e.g., "Minsk, Minsk")
+    await db.execAsync(`DELETE FROM cluster_labels`);
+  }
+
+  if (currentVersion < 6) {
+    // Clear labels again — fixed prefix dedup (e.g., "Minsk, Minsk Region")
+    await db.execAsync(`DELETE FROM cluster_labels`);
   }
 
   if (currentVersion === 0) {
@@ -154,6 +170,29 @@ export async function getTrailSummaries(
   return rows.map(rowToSummary);
 }
 
+/** Load trail summaries within a date range and bounding box. */
+export async function getTrailSummariesInArea(
+  db: SQLiteDatabase,
+  startDate: Date,
+  endDate: Date,
+  bbox: BoundingBox,
+): Promise<TrailSummary[]> {
+  const rows = await db.getAllAsync<SummaryRow>(
+    `SELECT ${SUMMARY_COLS} FROM trails
+     WHERE start_date >= ? AND start_date <= ?
+       AND bbox_max_lat >= ? AND bbox_min_lat <= ?
+       AND bbox_max_lng >= ? AND bbox_min_lng <= ?
+     ORDER BY start_date DESC`,
+    startDate.toISOString(),
+    endDate.toISOString(),
+    bbox.minLat,
+    bbox.maxLat,
+    bbox.minLng,
+    bbox.maxLng,
+  );
+  return rows.map(rowToSummary);
+}
+
 // ---------- Coordinate queries (on demand) ----------
 
 /** Load coordinates for a single trail. */
@@ -195,6 +234,13 @@ export async function getTrailsByIds(
   return results;
 }
 
+// ---------- Delete ----------
+
+export async function deleteAllTrails(db: SQLiteDatabase) {
+  await db.execAsync('DELETE FROM trails');
+  await db.execAsync('DELETE FROM cluster_labels');
+}
+
 // ---------- Stats ----------
 
 export async function getTrailCount(db: SQLiteDatabase): Promise<number> {
@@ -211,6 +257,15 @@ export async function getLastImportDate(
     'SELECT imported_at FROM trails ORDER BY imported_at DESC LIMIT 1',
   );
   return result?.imported_at ?? null;
+}
+
+export async function getLatestTrailDate(
+  db: SQLiteDatabase,
+): Promise<Date | null> {
+  const result = await db.getFirstAsync<{ start_date: string }>(
+    'SELECT start_date FROM trails ORDER BY start_date DESC LIMIT 1',
+  );
+  return result ? new Date(result.start_date) : null;
 }
 
 // ---------- Settings ----------

@@ -5,7 +5,7 @@ import {
   queryWorkoutSamples,
 } from '@kingstinct/react-native-healthkit';
 import { WorkoutActivityType } from '@kingstinct/react-native-healthkit/types';
-import { computeBoundingBox, simplifyCoordinates } from '@/lib/geo';
+import { computeBoundingBox, filterGpsOutliers, simplifyCoordinates, type TimedCoordinate } from '@/lib/geo';
 import { upsertTrail } from '@/lib/db';
 
 const ACTIVITY_TYPES = [
@@ -20,7 +20,7 @@ interface UseImportTrailsResult {
   progress: number;
   total: number;
   error: string | null;
-  startImport: () => void;
+  startImport: (since?: Date | null) => void;
 }
 
 export function useImportTrails(): UseImportTrailsResult {
@@ -30,7 +30,7 @@ export function useImportTrails(): UseImportTrailsResult {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const startImport = useCallback(async () => {
+  const startImport = useCallback(async (since?: Date | null) => {
     if (importing) return;
 
     setImporting(true);
@@ -47,6 +47,7 @@ export function useImportTrails(): UseImportTrailsResult {
         limit: 0,
         ascending: false,
         filter: {
+          ...(since ? { date: { startDate: since } } : {}),
           OR: ACTIVITY_TYPES.map((type) => ({ workoutActivityType: type })),
         },
       });
@@ -60,13 +61,16 @@ export function useImportTrails(): UseImportTrailsResult {
         try {
           const routes = await workout.getWorkoutRoutes();
           if (routes.length > 0 && routes[0].locations.length > 0) {
-            const rawCoords = routes[0].locations.map((loc) => ({
+            const timedCoords = routes[0].locations.map((loc) => ({
               latitude: loc.latitude,
               longitude: loc.longitude,
+              timestamp: loc.date.getTime(),
             }));
 
-            // Simplify coordinates to prevent OOM on map render
-            const coordinates = simplifyCoordinates(rawCoords, 0.00005);
+            // Remove GPS spoofing outliers, then simplify
+            const cleaned = filterGpsOutliers(timedCoords);
+            if (cleaned.length < 2) continue;
+            const coordinates = simplifyCoordinates(cleaned, 0.00005);
 
             // Extract weather metadata from BaseSample
             const temperature =

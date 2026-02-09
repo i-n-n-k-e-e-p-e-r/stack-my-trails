@@ -5,18 +5,19 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import MapView, { Polyline } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSQLiteContext } from "expo-sqlite";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors } from "@/constants/theme";
 import {
   getAllTrailSummaries,
   getTrailCoordinates,
-  getCachedLabel,
-  setCachedLabel,
 } from "@/lib/db";
+import { resolveLabel } from "@/lib/geocode";
 import { bboxCenter } from "@/lib/geo";
 import type { TrailSummary, Coordinate } from "@/lib/geo";
 
@@ -61,21 +62,28 @@ export default function TrailsScreen() {
   const colors = Colors[colorScheme];
   const mapRef = useRef<MapView>(null);
   const db = useSQLiteContext();
+  const router = useRouter();
 
   const [trails, setTrails] = useState<TrailSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCoords, setSelectedCoords] = useState<Coordinate[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
 
-  // Load summaries only — no coordinates
-  useEffect(() => {
-    getAllTrailSummaries(db).then((data) => {
-      setTrails(data);
-      if (data.length > 0) {
-        setSelectedId(data[0].workoutId);
-      }
-    });
-  }, [db]);
+  // Reload summaries every time the tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      getAllTrailSummaries(db).then((data) => {
+        setTrails(data);
+        setLoading(false);
+        if (data.length > 0 && !selectedId) {
+          setSelectedId(data[0].workoutId);
+        }
+      });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [db]),
+  );
 
   // Load coordinates only for the selected trail
   useEffect(() => {
@@ -100,7 +108,7 @@ export default function TrailsScreen() {
 
   // Resolve location labels
   useEffect(() => {
-    if (!mapRef.current || trails.length === 0) return;
+    if (trails.length === 0) return;
     let cancelled = false;
 
     async function resolveLabels() {
@@ -108,30 +116,8 @@ export default function TrailsScreen() {
       for (const trail of trails) {
         if (newLabels.has(trail.workoutId) || cancelled) continue;
         const center = bboxCenter(trail.boundingBox);
-
-        const cached = await getCachedLabel(
-          db,
-          center.latitude,
-          center.longitude,
-        );
-        if (cached) {
-          newLabels.set(trail.workoutId, cached);
-          continue;
-        }
-
-        try {
-          const address = await mapRef.current!.addressForCoordinate(center);
-          const parts = [address.locality, address.administrativeArea]
-              .filter((v) => v && v !== "null");
-          const label = parts.length > 0 ? parts.join(", ") : address.name || "Unknown";
-          newLabels.set(trail.workoutId, label);
-          await setCachedLabel(db, center.latitude, center.longitude, label);
-        } catch {
-          newLabels.set(
-            trail.workoutId,
-            `${center.latitude.toFixed(1)}, ${center.longitude.toFixed(1)}`,
-          );
-        }
+        const label = await resolveLabel(db, center);
+        newLabels.set(trail.workoutId, label);
       }
       if (!cancelled) setLabels(newLabels);
     }
@@ -196,6 +182,36 @@ export default function TrailsScreen() {
     [selectedId, labels, colors, colorScheme, handleSelect],
   );
 
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.tint} />
+        <Text style={[styles.loadingText, { color: colors.icon }]}>
+          Loading trails...
+        </Text>
+      </View>
+    );
+  }
+
+  if (trails.length === 0) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={styles.emptyIcon}>{"\u{1F3DE}"}</Text>
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>
+          No trails yet
+        </Text>
+        <Text style={[styles.emptySubtitle, { color: colors.icon }]}>
+          Import your workouts from Apple Health to see them here.
+        </Text>
+        <TouchableOpacity
+          style={[styles.emptyButton, { backgroundColor: colors.tint }]}
+          onPress={() => router.push("/(tabs)/settings")}>
+          <Text style={styles.emptyButtonText}>Go to Settings</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Preview map — top half */}
@@ -250,6 +266,40 @@ export default function TrailsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  centered: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  loadingText: {
+    fontSize: 15,
+    marginTop: 12,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  emptyButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   mapContainer: {
     height: "50%",

@@ -2,14 +2,13 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
 import MapView, { Polyline } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
+import { getTrailCount } from '@/lib/db';
 import { useTrails } from '@/hooks/use-trails';
-import { bboxCenter } from '@/lib/geo';
-import { getCachedLabel, setCachedLabel } from '@/lib/db';
-import type { Trail } from '@/lib/geo';
+import type { BoundingBox, Trail } from '@/lib/geo';
 
 const TRAIL_WIDTH = 3;
 
@@ -20,11 +19,19 @@ export default function StackScreen() {
   const mapRef = useRef<MapView>(null);
   const router = useRouter();
   const db = useSQLiteContext();
+  const [hasTrails, setHasTrails] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      getTrailCount(db).then((count) => setHasTrails(count > 0));
+    }, [db]),
+  );
 
   const params = useLocalSearchParams<{
     startDate?: string;
     endDate?: string;
-    clusterId?: string;
+    bbox?: string;
+    areaLabel?: string;
   }>();
 
   const [startDate, setStartDate] = useState(() => {
@@ -33,29 +40,32 @@ export default function StackScreen() {
     return d;
   });
   const [endDate, setEndDate] = useState(() => new Date());
-  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null);
+  const [filterBbox, setFilterBbox] = useState<BoundingBox | null>(null);
+  const [areaLabel, setAreaLabel] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.startDate) setStartDate(new Date(params.startDate));
     if (params.endDate) setEndDate(new Date(params.endDate));
-    if (params.clusterId) setSelectedClusterId(params.clusterId);
-  }, [params.startDate, params.endDate, params.clusterId]);
-
-  const { clusters, loading, loadClusterTrails } = useTrails({ startDate, endDate });
-
-  // Auto-select first cluster
-  useEffect(() => {
-    if (clusters.length > 0 && !selectedClusterId) {
-      setSelectedClusterId(clusters[0].id);
+    if (params.bbox) {
+      try {
+        setFilterBbox(JSON.parse(params.bbox));
+      } catch {}
     }
-  }, [clusters, selectedClusterId]);
+    if (params.areaLabel) setAreaLabel(params.areaLabel);
+  }, [params.startDate, params.endDate, params.bbox, params.areaLabel]);
+
+  const { clusters, loading, loadClusterTrails } = useTrails({
+    startDate,
+    endDate,
+    bbox: filterBbox,
+  });
 
   const selectedCluster = useMemo(
-    () => clusters.find((c) => c.id === selectedClusterId) ?? null,
-    [clusters, selectedClusterId],
+    () => (clusters.length > 0 ? clusters[0] : null),
+    [clusters],
   );
 
-  // Load coordinates on demand for selected cluster
+  // Load coordinates on demand
   const [renderedTrails, setRenderedTrails] = useState<Trail[]>([]);
   const [loadingTrails, setLoadingTrails] = useState(false);
 
@@ -67,13 +77,13 @@ export default function StackScreen() {
 
     let cancelled = false;
     setLoadingTrails(true);
+    setRenderedTrails([]);
 
     loadClusterTrails(selectedCluster).then((trails) => {
       if (!cancelled) {
         setRenderedTrails(trails);
         setLoadingTrails(false);
 
-        // Fit map to loaded coordinates
         const allCoords = trails.flatMap((t) => t.coordinates);
         if (allCoords.length > 0) {
           setTimeout(() => {
@@ -89,55 +99,38 @@ export default function StackScreen() {
     return () => { cancelled = true; };
   }, [selectedCluster, loadClusterTrails]);
 
-  // Resolve cluster labels
-  const [, forceUpdate] = useState(0);
-  useEffect(() => {
-    if (!mapRef.current || clusters.length === 0) return;
-    let cancelled = false;
-
-    async function labelAll() {
-      let updated = false;
-      for (const cluster of clusters) {
-        if (cluster.label || cancelled) continue;
-        const center = bboxCenter(cluster.boundingBox);
-        const cached = await getCachedLabel(db, center.latitude, center.longitude);
-        if (cached) {
-          cluster.label = cached;
-          updated = true;
-          continue;
-        }
-        try {
-          const address = await mapRef.current!.addressForCoordinate(center);
-          const parts = [address.locality, address.administrativeArea]
-              .filter((v) => v && v !== 'null');
-          const label = parts.length > 0 ? parts.join(', ') : address.name || 'Unknown';
-          cluster.label = label;
-          await setCachedLabel(db, center.latitude, center.longitude, label);
-          updated = true;
-        } catch {
-          cluster.label = `${center.latitude.toFixed(1)}, ${center.longitude.toFixed(1)}`;
-          updated = true;
-        }
-      }
-      if (!cancelled && updated) forceUpdate((n) => n + 1);
-    }
-
-    labelAll();
-    return () => { cancelled = true; };
-  }, [clusters, db]);
-
   const openFilters = useCallback(() => {
     router.push({
       pathname: '/filter-modal',
       params: {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        clusterId: selectedClusterId ?? '',
+        bbox: filterBbox ? JSON.stringify(filterBbox) : '',
+        areaLabel: areaLabel ?? '',
       },
     });
-  }, [router, startDate, endDate, selectedClusterId]);
+  }, [router, startDate, endDate, filterBbox, areaLabel]);
 
   const totalInCluster = selectedCluster?.summaries.length ?? 0;
+
+  if (!hasTrails) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+        <Text style={styles.emptyIcon}>{"\u{1F5FA}"}</Text>
+        <Text style={[styles.emptyTitle, { color: colors.text }]}>
+          No trails yet
+        </Text>
+        <Text style={[styles.emptySubtitle, { color: colors.icon }]}>
+          Import your workouts first to stack them on the map.
+        </Text>
+        <TouchableOpacity
+          style={[styles.emptyButton, { backgroundColor: colors.tint }]}
+          onPress={() => router.push("/(tabs)/settings")}>
+          <Text style={styles.emptyButtonText}>Go to Settings</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -178,7 +171,7 @@ export default function StackScreen() {
               <Text
                 style={[styles.clusterLabel, { color: colors.text }]}
                 numberOfLines={1}>
-                {selectedCluster?.label ?? 'Select an area'}
+                {areaLabel ?? 'Select an area'}
               </Text>
               <Text style={[styles.trailCount, { color: colors.icon }]}>
                 {loading || loadingTrails
@@ -207,6 +200,36 @@ export default function StackScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  emptyButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  emptyButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   topBar: {
     position: 'absolute',
