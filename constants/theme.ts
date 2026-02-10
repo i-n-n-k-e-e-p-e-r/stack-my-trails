@@ -1,57 +1,53 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
-import { Platform } from 'react-native';
-
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#0ea5d6';
+import { Platform } from "react-native";
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
-    tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
-    tabIconSelected: tintColorLight,
-    trailStroke: 'rgba(170, 25, 18, 0.8)',
-    trailStrokeStacked: 'rgba(170, 25, 18, 0.35)',
+    text: "#212529",
+    textSecondary: "#6C757D",
+    background: "#F5F6F7",
+    surface: "#FFFFFF",
+    accent: "#FCC803",
+    icon: "#6C757D",
+    tabIconDefault: "#ADB5BD",
+    tabIconSelected: "#212529",
+    border: "#212529",
+    borderLight: "#DEE2E6",
+    danger: "#DC2626",
+    // Dark ink trails on pale map
+    trailStroke: "rgba(33,37,41,0.9)",
+    trailStrokeStacked: "rgba(33,37,41,0.5)",
+    // Dark text on yellow accent buttons
+    buttonText: "#212529",
+    activeSelectionBorder: "#212529",
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
-    tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
-    tabIconSelected: tintColorDark,
-    trailStroke: 'rgba(255, 172, 55, 0.85)',
-    trailStrokeStacked: 'rgba(255, 172, 55, 0.4)',
+    text: "#FFFFFF",
+    textSecondary: "#ADB5BD",
+    background: "#212529",
+    surface: "#2D3238",
+    accent: "#6C757D",
+    icon: "#ADB5BD",
+    tabIconDefault: "#6C757D",
+    tabIconSelected: "#FFFFFF",
+    border: "#495057",
+    borderLight: "#495057",
+    danger: "#EF4444",
+    // Bright accent trails on dark map
+    trailStroke: "rgba(252,200,3,0.95)",
+    trailStrokeStacked: "rgba(252,200,3,0.5)",
+    // Dark text on yellow accent buttons
+    buttonText: "#212529",
+    activeSelectionBorder: "#ADB5BD",
   },
 };
 
-export const Fonts = Platform.select({
-  ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
-  },
-  default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
-  },
-  web: {
-    sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
-    serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
-    mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-  },
-});
+export const Fonts = {
+  regular: "Geist-Regular",
+  medium: "Geist-Medium",
+  semibold: "Geist-SemiBold",
+  bold: "Geist-Bold",
+  system: Platform.select({
+    ios: "System",
+    default: "sans-serif",
+  }),
+};

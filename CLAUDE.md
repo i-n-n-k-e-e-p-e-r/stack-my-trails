@@ -12,16 +12,18 @@ React Native (Expo 54) app that reads workout routes from Apple Health and stack
 - **Geocoding:** `expo-location` for reverse geocoding (shared `lib/geocode.ts`)
 - **Date Picker:** `@react-native-community/datetimepicker`
 - **Theming:** Custom ThemeProvider (`contexts/theme.tsx`) with light/dark/auto, persisted in SQLite settings table
+- **Typography:** Geist font (4 weights: Regular, Medium, SemiBold, Bold) bundled in `assets/fonts/`
+- **Icons:** Feather icons via `@expo/vector-icons` (navigation, layers, sliders, filter)
 - **Build:** Dev client build required (has `ios/` directory, not Expo Go)
 
 ## Project Structure
 
 ```
 app/
-  _layout.tsx             — Root layout (SQLiteProvider + ThemeProvider + Stack)
+  _layout.tsx             — Root layout (SQLiteProvider + ThemeProvider + font loading + Stack)
   filter-modal.tsx        — Modal: date range + area selection filters (two-level: city groups → sub-areas)
   (tabs)/
-    _layout.tsx           — Tab layout (Trails, Stack, Settings)
+    _layout.tsx           — Custom tab bar (floating capsule, Feather icons, circle active state)
     index.tsx             — Tab 1: trail list with preview map, empty state with import link
     stack.tsx             — Tab 2: stacked trails map with label-based area filtering
     settings.tsx          — Tab 3: import + theme selector + delete all data
@@ -34,10 +36,10 @@ lib/
   geocode.ts              — Shared reverse geocoding: SQLite cache → expo-location fallback
 contexts/
   theme.tsx               — ThemeProvider with Appearance.setColorScheme() + SQLite persistence
-components/
-  (various themed components from Expo template)
+assets/
+  fonts/                  — Geist-Regular.otf, Geist-Medium.otf, Geist-SemiBold.otf, Geist-Bold.otf
 constants/
-  theme.ts                — Colors (incl. trail stroke colors per theme) and Fonts
+  theme.ts                — B&W + accent color palette, Geist font tokens
 ```
 
 ## Architecture
@@ -55,6 +57,38 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - **Per-trail location labels** — stored in `location_label` column at import time, stable across re-imports
 - **Cluster labels cached** in `cluster_labels` table (reverse geocoding via expo-location)
 - **Schema versioned** — `schema_version` table tracks migrations (currently v7)
+
+## Design System
+
+### Visual Language
+- **B&W + one accent color** — stark black and white with `#FCC803` (yellow) as the single accent
+- **Solid borders** — no blur, no transparency, no glassmorphism
+- **Full rounded corners** — capsule shapes (`borderRadius: 999`) on buttons, tab bar, top card; `borderRadius: 24` on cards
+- **Border width: 1.5** on cards and containers; thicker `2.5` on selected trail card
+- **Geist font** — cross-platform (future Android), 4 weights loaded via `expo-font` + `SplashScreen` gate
+
+### Color Tokens (`constants/theme.ts`)
+- `text` / `textSecondary` — primary and muted text
+- `background` / `surface` — screen bg and card bg
+- `accent` — `#FCC803` yellow, same in both themes
+- `border` — solid dark (`#212529` light, `#FFFFFF` dark)
+- `borderLight` — subtle dividers inside cards (`#DEE2E6` light, `#495057` dark)
+- `trailStroke` / `trailStrokeStacked` — light: dark ink `rgba(33,37,41)`, dark: yellow `rgba(252,200,3)`
+- `buttonText` — always `#212529` (dark text on yellow accent buttons)
+
+### Tab Bar
+- **Custom `tabBar` component** — full control, not fighting React Navigation's internal layout
+- Floating capsule centered at bottom, auto-sized to fit 3 circle buttons
+- Active state: filled circle (`colors.text` bg) with inverted icon (`colors.surface`)
+- Inactive: same `colors.text` icon color, no background
+- `tabBarWrapper` uses `alignItems: 'center'` for horizontal centering
+- Icons: `navigation` (trails), `layers` (stack), `sliders` (settings)
+
+### Active/Selected States
+- Tab bar: inverted circle (dark circle + white icon on light, white circle + dark icon on dark)
+- Trail cards: thicker border (2.5 vs 1.5), same surface background
+- Filter preset chips: accent bg + dark text
+- Theme segments: accent bg + dark text, inactive has border + text color
 
 ## Key Patterns
 
@@ -94,11 +128,12 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - Called during import to store `location_label` per trail — labels are stable across re-imports
 - Also used by trails tab for display labels
 
-### Coordinate Simplification (Crash Fix)
-- **Problem:** Raw GPS routes have thousands of points, rendering 50+ trails = OOM crash
+### Coordinate Simplification
+- **Problem:** Raw GPS routes have thousands of points per trail
 - **Fix:** Douglas-Peucker algorithm in `lib/geo.ts:simplifyCoordinates()`
-- Applied at import time (tolerance=0.00005), stored simplified
-- Stack view also caps at 50 trails per render
+- Applied at import time (tolerance=0.00005), stored simplified — 80-90% point reduction
+- **Two-tier rendering:** stack view caps at 500 trails; when >100 trails rendered, re-simplifies at render time with coarser tolerance (0.0002) to keep total point count manageable
+- Re-simplification is render-only — stored data keeps full fidelity
 - Existing data requires re-import after adding simplification
 
 ### Geographic Clustering & Area Grouping
@@ -112,19 +147,32 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
   - Passes `areaLabels` (JSON array of label strings) to stack screen, NOT bbox
 - `useTrails` hook accepts `labels?: string[]` — uses `getTrailSummariesByLabels()` for exact matching
 
+### Font Loading
+- Geist font loaded via `useFonts()` from `expo-font` in `app/_layout.tsx`
+- `SplashScreen.preventAutoHideAsync()` gates app render until fonts are ready
+- Font tokens in `constants/theme.ts`: `Fonts.regular`, `.medium`, `.semibold`, `.bold`
+
 ### Theme System
 - `contexts/theme.tsx`: ThemeProvider using `Appearance.setColorScheme()`
 - Persisted in SQLite settings table (light/dark/auto)
 - `.catch(() => {})` on getSetting/setSetting to handle table not existing during migration
 - Maps use `userInterfaceStyle={colorScheme}` for dark/light map styling
-- Trail colors in `constants/theme.ts`: dark = warm orange, light = deep red
+- Trail colors: light = dark ink (`#212529` based), dark = accent yellow (`#FCC803` based)
 
 ### Apple Maps
 - No config plugin for react-native-maps (don't add to plugins array!)
 - `mapType="mutedStandard"` for subtle background
 - `userInterfaceStyle={colorScheme}` for dark/light map
+- `showsPointsOfInterest={false}` + `showsBuildings={false}` to reduce map noise
 - Trail colors from theme: `colors.trailStroke` / `colors.trailStrokeStacked`
 - `fitToCoordinates()` to auto-zoom
+
+### Tab Bar (Custom Component)
+- Custom `tabBar` prop on `<Tabs>` — bypasses React Navigation's internal layout completely
+- `tabBarWrapper`: absolute positioned, `left: 0, right: 0, alignItems: 'center'` for centering
+- `tabBar`: `flexDirection: 'row'`, `gap: 12`, auto-sized with padding — no fixed width needed
+- Icons wrapped in `iconCircle` (46×46, borderRadius: 23) with conditional fill for active state
+- Much more reliable than fighting `tabBarStyle` for custom shapes
 
 ### Tab Refresh Pattern
 - Use `useFocusEffect` (from expo-router) instead of `useEffect` for data that should refresh when switching tabs
@@ -133,7 +181,7 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 
 ### Filter Modal
 - Loads all trail summaries from DB, groups by stored `location_label`
-- Date range fixed on top, scrollable area list below
+- Date range fixed on top, area list scrolls **inside** the bordered card (card is outer container, ScrollView inside)
 - Presets: 1D, 1W, 1M, 6M, 1Y, All
 - Passes `areaLabels` (JSON array) + `areaLabel` (display string) back to stack screen via router params
 - Uses index-based keys and expand tracking (not labels, which can collide)
@@ -154,6 +202,13 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - **GPS spoofing in Israel** — government GPS jamming during war creates points in Amman/Beirut; speed-based filter with timestamps is most effective approach
 - **ThemeProvider must handle missing settings table** — wrap getSetting/setSetting in .catch() since it may run before migration
 - **Duplicate React keys** — area groups can have same label; use array index, not label, for keys and expand tracking
+- **Map overlay approaches that DON'T work on Apple Maps:**
+  - `Polygon` inside MapView (world-spanning coordinates don't render)
+  - `LocalTile` with semi-transparent PNG (alpha not preserved during tile scaling, covers entire map opaque)
+  - `View` overlay with `pointerEvents="none"` (dims both map AND polylines equally — polylines are native MapView children)
+- **React Navigation tab bar layout issues** — `tabBarStyle` positioning (left/right/width) and `tabBarItemStyle` centering are unreliable for custom shapes; use custom `tabBar` component instead
+- **Geist font loading** — must gate app render with `useFonts()` + `SplashScreen.preventAutoHideAsync()` to prevent FOUT
+- **Filter modal scroll containment** — ScrollView must be INSIDE the bordered card View (not wrapping it) so content clips to rounded corners
 
 ## Build & Run
 
@@ -171,6 +226,43 @@ npx tsc --noEmit
 # Lint
 npx expo lint
 ```
+
+## Next Up: Phase 2 — Export / Poster Flow
+
+> **For the next agent:** Phase 1 (visual overhaul) is complete. Phase 2 is the export feature. Start here.
+
+### Context Files to Read First
+1. **`docs/plans/2026-02-09-visual-overhaul-and-export-design.md`** — Full design document covering both phases. Phase 2 section has the complete spec for the export flow including Skia rendering, poster themes, and UI.
+2. **`styles-refactoring/StackMyTrails_Blueprint.md`** — Original app blueprint with export flow concepts
+3. **`styles-refactoring/exported-posters-variants.webp`** — Visual reference for poster output styles
+4. **`styles-refactoring/pallete.json`** — Design palette (`#212529` dark, `#F5F6F7` light, `#FCC803` accent)
+5. **`constants/theme.ts`** — Current B&W + accent color tokens (use these, don't reinvent)
+6. **`app/(tabs)/stack.tsx`** — Stack map screen (the export button will live here)
+7. **`hooks/use-trails.ts`** — Trail data loading + clustering (export will consume same data)
+
+### What Phase 2 Involves
+- **New dependencies:** `@shopify/react-native-skia`, `react-native-view-shot`, `expo-media-library` (all require prebuild)
+- **Skia canvas rendering** with additive blending for true heatmap intensity visualization
+- **3 poster themes:**
+  - **Noir** — dark bg, **neon glow effect** with cold-to-hot color gradient (blue→cyan→green→yellow→red) based on trail overlap frequency. Most-visited areas glow hot, less-visited glow cold.
+  - **Architect** — light bg, dark trails
+  - **Minimalist** — white bg, single accent color
+- **Export modal/screen** with: poster preview, theme selector, intensity slider, label stamp toggle, high-res PNG export to camera roll
+- **The export button** should be added to the Stack screen (next to or replacing the filter button, or as a separate action)
+- **Two-tier rendering:** Live map uses opacity stacking (current), export uses Skia additive blending for premium output
+
+### Design Decisions Already Made
+- Trail coloring by **intensity** (overlap frequency), NOT per-activity type
+- Opacity stacking on live map, Skia for export — two-tier approach
+- Keep `StyleSheet.create()` (no NativeWind)
+- B&W + `#FCC803` accent design language carries into export UI
+- Capsule buttons, solid borders, Geist font — same visual language
+
+### Important Notes
+- After installing Skia/view-shot/media-library: `npx expo prebuild --platform ios --clean && npx expo run:ios --device`
+- Skia's `Canvas` is NOT a MapView — you render trail coordinates directly onto a Skia canvas for the poster
+- The poster is a static image, not an interactive map — transform trail coordinates to canvas pixel space
+- Check Skia compatibility with Expo 54 / New Architecture before installing
 
 ## App Config Notes
 

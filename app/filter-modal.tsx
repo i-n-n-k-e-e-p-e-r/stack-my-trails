@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -7,23 +7,23 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
-} from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
-import { getAllTrailSummaries } from '@/lib/db';
-import type { TrailSummary } from '@/lib/geo';
+} from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Colors, Fonts } from "@/constants/theme";
+import { getAllTrailSummaries } from "@/lib/db";
+import type { TrailSummary } from "@/lib/geo";
 
 const PRESETS = [
-  { label: '1D', days: 1 },
-  { label: '1W', days: 7 },
-  { label: '1M', days: 30 },
-  { label: '6M', days: 183 },
-  { label: '1Y', days: 365 },
-  { label: 'All', days: 3650 },
+  { label: "1D", days: 1 },
+  { label: "1W", days: 7 },
+  { label: "1M", days: 30 },
+  { label: "6M", days: 183 },
+  { label: "1Y", days: 365 },
+  { label: "All", days: 3650 },
 ] as const;
 
 interface SubArea {
@@ -41,24 +41,22 @@ interface AreaGroup {
 }
 
 function extractCity(label: string): string {
-  const idx = label.lastIndexOf(', ');
+  const idx = label.lastIndexOf(", ");
   return idx >= 0 ? label.substring(idx + 2) : label;
 }
 
 function extractLocality(label: string): string {
-  const idx = label.lastIndexOf(', ');
+  const idx = label.lastIndexOf(", ");
   return idx >= 0 ? label.substring(0, idx) : label;
 }
 
 function buildAreaGroups(summaries: TrailSummary[]): AreaGroup[] {
-  // Group trails by their stored label
   const byLabel = new Map<string, number>();
   for (const s of summaries) {
-    const label = s.locationLabel || 'Unknown';
+    const label = s.locationLabel || "Unknown";
     byLabel.set(label, (byLabel.get(label) ?? 0) + 1);
   }
 
-  // Group labels by city (suffix after last comma)
   const cityMap = new Map<string, { label: string; count: number }[]>();
   for (const [label, count] of byLabel) {
     const city = extractCity(label);
@@ -68,11 +66,7 @@ function buildAreaGroups(summaries: TrailSummary[]): AreaGroup[] {
 
   const result: AreaGroup[] = [];
   for (const [city, entries] of cityMap) {
-    // Merge entries with the same locality name
-    const localityMap = new Map<
-      string,
-      { count: number; labels: string[] }
-    >();
+    const localityMap = new Map<string, { count: number; labels: string[] }>();
     for (const e of entries) {
       const locality = extractLocality(e.label);
       const existing = localityMap.get(locality);
@@ -104,7 +98,7 @@ function buildAreaGroups(summaries: TrailSummary[]): AreaGroup[] {
 
 export default function FilterModal() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const router = useRouter();
   const db = useSQLiteContext();
@@ -132,7 +126,7 @@ export default function FilterModal() {
     return [];
   });
   const [selectedDisplayLabel, setSelectedDisplayLabel] = useState<string>(
-    params.areaLabel ?? '',
+    params.areaLabel ?? "",
   );
   const [showCustomStart, setShowCustomStart] = useState(false);
   const [showCustomEnd, setShowCustomEnd] = useState(false);
@@ -149,7 +143,6 @@ export default function FilterModal() {
       setAreaGroups(buildAreaGroups(summaries));
       setLoadingAreas(false);
 
-      // Auto-expand group containing selected area
       if (selectedLabels.length > 0) {
         const groups = buildAreaGroups(summaries);
         for (let i = 0; i < groups.length; i++) {
@@ -218,19 +211,25 @@ export default function FilterModal() {
   };
 
   const activePreset = getActivePreset();
-  const cardBg = colorScheme === 'dark' ? '#1c1e1f' : '#f5f5f5';
-  const borderCol = colorScheme === 'dark' ? '#2a2d2e' : '#e5e5e5';
 
   return (
     <View
       style={[
         styles.container,
         { backgroundColor: colors.background, paddingBottom: insets.bottom },
-      ]}>
+      ]}
+    >
+      {/* Drag handle */}
+      <View style={styles.handleContainer}>
+        <View
+          style={[styles.handle, { backgroundColor: colors.borderLight }]}
+        />
+      </View>
+
       {/* Fixed date range section */}
       <View style={styles.fixedSection}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>
-          Date Range
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          DATE RANGE
         </Text>
 
         <View style={styles.presetRow}>
@@ -242,19 +241,22 @@ export default function FilterModal() {
                 style={[
                   styles.presetChip,
                   {
-                    backgroundColor: isActive
-                      ? colors.tint
-                      : colorScheme === 'dark'
-                        ? '#2a2d2e'
-                        : '#f0f0f0',
+                    backgroundColor: isActive ? colors.accent : "transparent",
+                    borderColor: isActive
+                      ? colors.activeSelectionBorder
+                      : colors.border,
                   },
                 ]}
-                onPress={() => handlePreset(preset.days)}>
+                onPress={() => handlePreset(preset.days)}
+              >
                 <Text
                   style={[
                     styles.presetText,
-                    { color: isActive ? '#fff' : colors.text },
-                  ]}>
+                    {
+                      color: colors.text,
+                    },
+                  ]}
+                >
                   {preset.label}
                 </Text>
               </TouchableOpacity>
@@ -262,19 +264,27 @@ export default function FilterModal() {
           })}
         </View>
 
-        <View style={[styles.dateCard, { backgroundColor: cardBg }]}>
+        <View
+          style={[
+            styles.dateCard,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
           <TouchableOpacity
             style={styles.dateRow}
             onPress={() => {
               setShowCustomStart(!showCustomStart);
               setShowCustomEnd(false);
-            }}>
-            <Text style={[styles.dateLabel, { color: colors.icon }]}>From</Text>
+            }}
+          >
+            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
+              From
+            </Text>
             <Text style={[styles.dateValue, { color: colors.text }]}>
               {startDate.toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
+                month: "short",
+                day: "numeric",
+                year: "numeric",
               })}
             </Text>
           </TouchableOpacity>
@@ -283,17 +293,21 @@ export default function FilterModal() {
             <DateTimePicker
               value={startDate}
               mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
+              display={Platform.OS === "ios" ? "inline" : "default"}
               maximumDate={endDate}
               onChange={(_, date) => {
                 if (date) setStartDate(date);
               }}
               themeVariant={colorScheme}
+              accentColor={colors.text}
             />
           )}
 
           <View
-            style={[styles.dateSeparator, { backgroundColor: borderCol }]}
+            style={[
+              styles.dateSeparator,
+              { backgroundColor: colors.borderLight },
+            ]}
           />
 
           <TouchableOpacity
@@ -301,13 +315,16 @@ export default function FilterModal() {
             onPress={() => {
               setShowCustomEnd(!showCustomEnd);
               setShowCustomStart(false);
-            }}>
-            <Text style={[styles.dateLabel, { color: colors.icon }]}>To</Text>
+            }}
+          >
+            <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
+              To
+            </Text>
             <Text style={[styles.dateValue, { color: colors.text }]}>
               {endDate.toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
+                month: "short",
+                day: "numeric",
+                year: "numeric",
               })}
             </Text>
           </TouchableOpacity>
@@ -316,13 +333,14 @@ export default function FilterModal() {
             <DateTimePicker
               value={endDate}
               mode="date"
-              display={Platform.OS === 'ios' ? 'inline' : 'default'}
+              display={Platform.OS === "ios" ? "inline" : "default"}
               minimumDate={startDate}
               maximumDate={new Date()}
               onChange={(_, date) => {
                 if (date) setEndDate(date);
               }}
               themeVariant={colorScheme}
+              accentColor={colors.text}
             />
           )}
         </View>
@@ -330,184 +348,249 @@ export default function FilterModal() {
 
       {/* Scrollable area selection */}
       <View style={styles.areaSection}>
-        <Text
-          style={[
-            styles.sectionTitle,
-            styles.areaSectionTitle,
-            { color: colors.text },
-          ]}>
-          Area
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          AREAS
         </Text>
         {loadingAreas ? (
           <View style={styles.areaLoading}>
-            <ActivityIndicator size="small" color={colors.tint} />
-            <Text style={[styles.areaLoadingText, { color: colors.icon }]}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Text
+              style={[styles.areaLoadingText, { color: colors.textSecondary }]}
+            >
               Loading areas...
             </Text>
           </View>
-        ) : areaGroups.length > 0 && (
-          <ScrollView
-            style={styles.areaScroll}
-            showsVerticalScrollIndicator={false}>
-            <View style={[styles.areaCard, { backgroundColor: cardBg }]}>
-              {areaGroups.map((group, gIdx) => {
-                const hasSubs = group.subAreas.length > 1;
-                const isExpanded = expandedGroups.has(gIdx);
-                const groupSelected = labelsMatch(
-                  selectedLabels,
-                  group.allLabels,
-                );
-                const isLast = gIdx === areaGroups.length - 1;
-
-                // Single sub-area: flat row
-                if (!hasSubs) {
-                  const sub = group.subAreas[0];
-                  const isActive = labelsMatch(selectedLabels, sub.labels);
-
-                  return (
-                    <TouchableOpacity
-                      key={gIdx}
-                      style={[
-                        styles.areaRow,
-                        !isLast && {
-                          borderBottomWidth: StyleSheet.hairlineWidth,
-                          borderBottomColor: borderCol,
-                        },
-                      ]}
-                      onPress={() => selectArea(sub.labels, sub.fullLabel)}>
-                      <View
-                        style={[
-                          styles.radio,
-                          {
-                            borderColor: isActive ? colors.tint : colors.icon,
-                            backgroundColor: isActive
-                              ? colors.tint
-                              : 'transparent',
-                          },
-                        ]}
-                      />
-                      <Text
-                        style={[styles.areaLabel, { color: colors.text }]}
-                        numberOfLines={1}>
-                        {sub.fullLabel}
-                      </Text>
-                      <Text style={[styles.areaCount, { color: colors.icon }]}>
-                        {sub.count}
-                      </Text>
-                    </TouchableOpacity>
+        ) : (
+          areaGroups.length > 0 && (
+            <View
+              style={[
+                styles.areaCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {areaGroups.map((group, gIdx) => {
+                  const hasSubs = group.subAreas.length > 1;
+                  const isExpanded = expandedGroups.has(gIdx);
+                  const groupSelected = labelsMatch(
+                    selectedLabels,
+                    group.allLabels,
                   );
-                }
+                  const isLast = gIdx === areaGroups.length - 1;
 
-                // Multi sub-area: expandable group
-                return (
-                  <View key={gIdx}>
-                    <TouchableOpacity
-                      style={[
-                        styles.areaRow,
-                        !isExpanded &&
+                  if (!hasSubs) {
+                    const sub = group.subAreas[0];
+                    const isActive = labelsMatch(selectedLabels, sub.labels);
+
+                    return (
+                      <TouchableOpacity
+                        key={gIdx}
+                        style={[
+                          styles.areaRow,
                           !isLast && {
                             borderBottomWidth: StyleSheet.hairlineWidth,
-                            borderBottomColor: borderCol,
-                          },
-                      ]}
-                      onPress={() => {
-                        selectArea(group.allLabels, group.label);
-                        toggleGroup(gIdx);
-                      }}>
-                      <View
-                        style={[
-                          styles.radio,
-                          {
-                            borderColor: groupSelected
-                              ? colors.tint
-                              : colors.icon,
-                            backgroundColor: groupSelected
-                              ? colors.tint
-                              : 'transparent',
+                            borderBottomColor: colors.borderLight,
                           },
                         ]}
-                      />
-                      <Text
-                        style={[
-                          styles.areaLabel,
-                          { color: colors.text, fontWeight: '600' },
-                        ]}
-                        numberOfLines={1}>
-                        {group.label}
-                      </Text>
-                      <Text style={[styles.areaCount, { color: colors.icon }]}>
-                        {group.totalCount}
-                      </Text>
-                      <Text style={[styles.chevron, { color: colors.icon }]}>
-                        {isExpanded ? '\u25B4' : '\u25BE'}
-                      </Text>
-                    </TouchableOpacity>
-
-                    {isExpanded &&
-                      group.subAreas.map((sub, sIdx) => {
-                        const subSelected = labelsMatch(
-                          selectedLabels,
-                          sub.labels,
-                        );
-                        const subIsLast =
-                          sIdx === group.subAreas.length - 1 && isLast;
-
-                        return (
-                          <TouchableOpacity
-                            key={sIdx}
+                        onPress={() => selectArea(sub.labels, sub.fullLabel)}
+                      >
+                        <View
+                          style={[
+                            styles.radio,
+                            {
+                              borderColor: isActive
+                                ? colors.accent
+                                : colors.textSecondary,
+                              backgroundColor: isActive
+                                ? colors.accent
+                                : "transparent",
+                            },
+                          ]}
+                        />
+                        <Text
+                          style={[styles.areaLabel, { color: colors.text }]}
+                          numberOfLines={1}
+                        >
+                          {sub.fullLabel}
+                        </Text>
+                        <View
+                          style={[
+                            styles.countPill,
+                            { borderColor: colors.border, borderWidth: 1 },
+                          ]}
+                        >
+                          <Text
                             style={[
-                              styles.areaRow,
-                              styles.subAreaRow,
-                              !subIsLast && {
-                                borderBottomWidth: StyleSheet.hairlineWidth,
-                                borderBottomColor: borderCol,
-                              },
+                              styles.countPillText,
+                              { color: colors.text },
                             ]}
-                            onPress={() =>
-                              selectArea(sub.labels, sub.fullLabel)
-                            }>
-                            <View
+                          >
+                            {sub.count}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }
+
+                  return (
+                    <View key={gIdx}>
+                      <TouchableOpacity
+                        style={[
+                          styles.areaRow,
+                          !isExpanded &&
+                            !isLast && {
+                              borderBottomWidth: StyleSheet.hairlineWidth,
+                              borderBottomColor: colors.borderLight,
+                            },
+                        ]}
+                        onPress={() => {
+                          selectArea(group.allLabels, group.label);
+                          toggleGroup(gIdx);
+                        }}
+                      >
+                        <View
+                          style={[
+                            styles.radio,
+                            {
+                              borderColor: groupSelected
+                                ? colors.accent
+                                : colors.textSecondary,
+                              backgroundColor: groupSelected
+                                ? colors.accent
+                                : "transparent",
+                            },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.areaLabel,
+                            { color: colors.text, fontFamily: Fonts.medium },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {group.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.chevron,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {isExpanded ? "\u25B4" : "\u25BE"}
+                        </Text>
+                        <View
+                          style={[
+                            styles.countPill,
+                            { borderColor: colors.border, borderWidth: 1 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.countPillText,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {group.totalCount}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+
+                      {isExpanded &&
+                        group.subAreas.map((sub, sIdx) => {
+                          const subSelected = labelsMatch(
+                            selectedLabels,
+                            sub.labels,
+                          );
+                          const subIsLast =
+                            sIdx === group.subAreas.length - 1 && isLast;
+
+                          return (
+                            <TouchableOpacity
+                              key={sIdx}
                               style={[
-                                styles.radioSmall,
-                                {
-                                  borderColor: subSelected
-                                    ? colors.tint
-                                    : colors.icon,
-                                  backgroundColor: subSelected
-                                    ? colors.tint
-                                    : 'transparent',
+                                styles.areaRow,
+                                styles.subAreaRow,
+                                !subIsLast && {
+                                  borderBottomWidth: StyleSheet.hairlineWidth,
+                                  borderBottomColor: colors.borderLight,
                                 },
                               ]}
-                            />
-                            <Text
-                              style={[styles.areaLabel, { color: colors.text }]}
-                              numberOfLines={1}>
-                              {sub.label}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.areaCount,
-                                { color: colors.icon },
-                              ]}>
-                              {sub.count}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                  </View>
-                );
-              })}
+                              onPress={() =>
+                                selectArea(sub.labels, sub.fullLabel)
+                              }
+                            >
+                              <View
+                                style={[
+                                  styles.radioSmall,
+                                  {
+                                    borderColor: subSelected
+                                      ? colors.accent
+                                      : colors.textSecondary,
+                                    backgroundColor: subSelected
+                                      ? colors.accent
+                                      : "transparent",
+                                  },
+                                ]}
+                              />
+                              <Text
+                                style={[
+                                  styles.areaLabel,
+                                  { color: colors.text },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {sub.label}
+                              </Text>
+                              <View
+                                style={[
+                                  styles.countPill,
+                                  {
+                                    borderColor: colors.border,
+                                    borderWidth: 1,
+                                  },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.countPillText,
+                                    { color: colors.text },
+                                  ]}
+                                >
+                                  {sub.count}
+                                </Text>
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                    </View>
+                  );
+                })}
+              </ScrollView>
             </View>
-          </ScrollView>
+          )
         )}
       </View>
 
       {/* Apply button */}
       <View style={styles.applyContainer}>
         <TouchableOpacity
-          style={[styles.applyButton, { backgroundColor: colors.tint }]}
-          onPress={handleApply}>
-          <Text style={styles.applyButtonText}>Apply Filters</Text>
+          style={[
+            styles.applyButton,
+            {
+              backgroundColor: colors.accent,
+              borderColor: colors.activeSelectionBorder,
+              opacity: selectedLabels.length === 0 ? 0.4 : 1,
+            },
+          ]}
+          onPress={handleApply}
+          disabled={selectedLabels.length === 0}
+        >
+          <Text style={[styles.applyButtonText, { color: colors.text }]}>
+            Apply Filters
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -518,80 +601,91 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  handleContainer: {
+    alignItems: "center",
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+  },
   fixedSection: {
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 12,
   },
   areaSection: {
     flex: 1,
     paddingHorizontal: 20,
     minHeight: 0,
   },
-  areaSectionTitle: {
-    marginTop: 0,
-  },
   areaLoading: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     gap: 8,
   },
   areaLoadingText: {
+    fontFamily: Fonts.regular,
     fontSize: 14,
   },
-  areaScroll: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
+  sectionLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    letterSpacing: 1.5,
     marginBottom: 12,
     marginTop: 8,
   },
   presetRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginBottom: 16,
   },
   presetChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 2,
   },
   presetText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
   },
   dateCard: {
-    borderRadius: 12,
-    overflow: 'hidden',
+    borderRadius: 32,
+    borderWidth: 2,
+    overflow: "hidden",
     marginBottom: 24,
   },
   dateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 14,
   },
   dateLabel: {
+    fontFamily: Fonts.regular,
     fontSize: 15,
   },
   dateValue: {
+    fontFamily: Fonts.medium,
     fontSize: 15,
-    fontWeight: '500',
   },
   dateSeparator: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: 14,
   },
   areaCard: {
-    borderRadius: 12,
-    overflow: 'hidden',
+    flex: 1,
+    borderRadius: 32,
+    borderWidth: 2,
+    overflow: "hidden",
     marginBottom: 8,
   },
   areaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 14,
     gap: 12,
   },
@@ -612,13 +706,20 @@ const styles = StyleSheet.create({
   },
   areaLabel: {
     flex: 1,
+    fontFamily: Fonts.regular,
     fontSize: 15,
   },
-  areaCount: {
-    fontSize: 13,
+  countPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  countPillText: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
   },
   chevron: {
-    fontSize: 12,
+    fontSize: 14,
     marginLeft: 4,
   },
   applyContainer: {
@@ -626,13 +727,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   applyButton: {
+    borderWidth: 2,
     paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
+    borderRadius: 999,
+    alignItems: "center",
   },
   applyButtonText: {
-    color: '#fff',
+    fontFamily: Fonts.semibold,
     fontSize: 17,
-    fontWeight: '600',
   },
 });

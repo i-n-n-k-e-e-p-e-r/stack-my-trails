@@ -12,11 +12,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSQLiteContext } from "expo-sqlite";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useColorScheme } from "@/hooks/use-color-scheme";
-import { Colors } from "@/constants/theme";
-import {
-  getAllTrailSummaries,
-  getTrailCoordinates,
-} from "@/lib/db";
+import { Colors, Fonts } from "@/constants/theme";
+import { getAllTrailSummaries, getTrailCoordinates } from "@/lib/db";
 import { resolveLabel } from "@/lib/geocode";
 import { bboxCenter } from "@/lib/geo";
 import type { TrailSummary, Coordinate } from "@/lib/geo";
@@ -72,7 +69,6 @@ export default function TrailsScreen() {
   const [selectedCoords, setSelectedCoords] = useState<Coordinate[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
 
-  // Reload summaries every time the tab is focused
   useFocusEffect(
     useCallback(() => {
       setLoading(true);
@@ -87,7 +83,6 @@ export default function TrailsScreen() {
     }, [db]),
   );
 
-  // Load coordinates only for the selected trail
   useEffect(() => {
     if (!selectedId) {
       setSelectedCoords([]);
@@ -96,7 +91,6 @@ export default function TrailsScreen() {
     getTrailCoordinates(db, selectedId).then(setSelectedCoords);
   }, [db, selectedId]);
 
-  // Fit map to selected trail
   useEffect(() => {
     if (selectedCoords.length === 0) return;
     const timer = setTimeout(() => {
@@ -108,7 +102,6 @@ export default function TrailsScreen() {
     return () => clearTimeout(timer);
   }, [selectedCoords]);
 
-  // Resolve location labels
   useEffect(() => {
     if (trails.length === 0) return;
     let cancelled = false;
@@ -144,51 +137,77 @@ export default function TrailsScreen() {
       return (
         <TouchableOpacity
           style={[
-            styles.trailRow,
+            styles.trailCard,
             {
-              backgroundColor: isActive
-                ? colorScheme === "dark"
-                  ? "#1c2a33"
-                  : "#e8f4fd"
-                : "transparent",
+              backgroundColor: isActive ? colors.accent : colors.surface,
+              borderColor: isActive
+                ? colors.activeSelectionBorder
+                : colors.border,
+              borderWidth: 2,
             },
           ]}
           onPress={() => handleSelect(item.workoutId)}
-          activeOpacity={0.6}
+          activeOpacity={0.7}
         >
-          <Text style={styles.activityIcon}>
-            {ACTIVITY_ICONS[item.activityType] ?? "\u{1F3C3}"}
-          </Text>
-          <View style={styles.trailInfo}>
-            <Text
-              style={[styles.trailDate, { color: colors.text }]}
-              numberOfLines={1}
-            >
-              {formatDate(item.startDate)}
-              {" \u00B7 "}
-              {ACTIVITY_LABELS[item.activityType] ?? "Workout"}
-              {" \u00B7 "}
-              {formatDuration(item.duration)}
-            </Text>
-            <Text
-              style={[styles.trailPlace, { color: colors.icon }]}
-              numberOfLines={1}
-            >
-              {label ?? "Loading..."}
-              {temp ? ` \u00B7 ${temp}` : ""}
-            </Text>
+          <View style={styles.cardContent}>
+            <View style={styles.cardTopRow}>
+              <Text style={styles.activityIcon}>
+                {ACTIVITY_ICONS[item.activityType] ?? "\u{1F3C3}"}
+              </Text>
+              <View style={styles.cardTitleBlock}>
+                <Text
+                  style={[styles.trailTitle, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {ACTIVITY_LABELS[item.activityType] ?? "Workout"}
+                  {" \u00B7 "}
+                  {formatDate(item.startDate)}
+                </Text>
+                <Text
+                  style={[styles.trailSubtitle, { color: colors.text }]}
+                  numberOfLines={1}
+                >
+                  {label ?? "Loading..."}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.pillRow}>
+              <View style={[styles.pill, { backgroundColor: colors.text }]}>
+                <Text style={[styles.pillText, { color: colors.surface }]}>
+                  {formatDuration(item.duration)}
+                </Text>
+              </View>
+              {temp && (
+                <View
+                  style={[
+                    styles.pill,
+                    { borderColor: colors.border, borderWidth: 1 },
+                  ]}
+                >
+                  <Text style={[styles.pillText, { color: colors.text }]}>
+                    {temp}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </TouchableOpacity>
       );
     },
-    [selectedId, labels, colors, colorScheme, handleSelect],
+    [selectedId, labels, colors, handleSelect],
   );
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.tint} />
-        <Text style={[styles.loadingText, { color: colors.icon }]}>
+      <View
+        style={[
+          styles.container,
+          styles.centered,
+          { backgroundColor: colors.background },
+        ]}
+      >
+        <ActivityIndicator size="large" color={colors.accent} />
+        <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
           Loading trails...
         </Text>
       </View>
@@ -197,18 +216,26 @@ export default function TrailsScreen() {
 
   if (trails.length === 0) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={styles.emptyIcon}>{"\u{1F3DE}"}</Text>
+      <View
+        style={[
+          styles.container,
+          styles.centered,
+          { backgroundColor: colors.background },
+        ]}
+      >
         <Text style={[styles.emptyTitle, { color: colors.text }]}>
           No trails yet
         </Text>
-        <Text style={[styles.emptySubtitle, { color: colors.icon }]}>
+        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
           Import your workouts from Apple Health to see them here.
         </Text>
         <TouchableOpacity
-          style={[styles.emptyButton, { backgroundColor: colors.tint }]}
-          onPress={() => router.push("/(tabs)/settings")}>
-          <Text style={styles.emptyButtonText}>Go to Settings</Text>
+          style={[styles.emptyButton, { backgroundColor: colors.accent }]}
+          onPress={() => router.push("/(tabs)/settings")}
+        >
+          <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
+            Import from Health
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -224,6 +251,8 @@ export default function TrailsScreen() {
           mapType="mutedStandard"
           userInterfaceStyle={colorScheme}
           showsCompass={false}
+          showsPointsOfInterest={false}
+          showsBuildings={false}
           pitchEnabled={false}
           rotateEnabled={false}
         >
@@ -241,23 +270,23 @@ export default function TrailsScreen() {
 
       {/* Trail list — bottom half */}
       <View style={styles.listContainer}>
-        <View
-          style={[
-            styles.listHeader,
-            {
-              borderBottomColor: colorScheme === "dark" ? "#2a2d2e" : "#e5e5e5",
-            },
-          ]}
-        >
-          <Text style={[styles.listTitle, { color: colors.text }]}>
-            {trails.length} Trails
+        <View style={styles.listHeader}>
+          <Text style={[styles.listLabel, { color: colors.textSecondary }]}>
+            YOUR TRAILS
+          </Text>
+          <Text style={[styles.listCount, { color: colors.textSecondary }]}>
+            {trails.length}
           </Text>
         </View>
         <FlatList
           data={trails}
           keyExtractor={(item) => item.workoutId}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: insets.bottom + 80,
+            gap: 12,
+          }}
           showsVerticalScrollIndicator={false}
         />
       </View>
@@ -275,68 +304,94 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   loadingText: {
+    fontFamily: Fonts.medium,
     fontSize: 15,
     marginTop: 12,
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
   emptyTitle: {
+    fontFamily: Fonts.semibold,
     fontSize: 20,
-    fontWeight: "700",
     marginBottom: 8,
   },
   emptySubtitle: {
+    fontFamily: Fonts.regular,
     fontSize: 15,
     textAlign: "center",
     lineHeight: 20,
     marginBottom: 24,
   },
   emptyButton: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 999,
   },
   emptyButtonText: {
-    color: "#fff",
+    fontFamily: Fonts.semibold,
     fontSize: 16,
-    fontWeight: "600",
   },
   mapContainer: {
-    height: "50%",
+    height: "35%",
   },
   listContainer: {
     flex: 1,
   },
   listHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  listTitle: {
-    fontSize: 14,
-    fontWeight: "600",
+  listLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    letterSpacing: 1.5,
   },
-  trailRow: {
+  listCount: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    letterSpacing: 1.5,
+  },
+  trailCard: {
+    borderRadius: 32,
+    overflow: "hidden",
+  },
+  cardContent: {
+    padding: 16,
+  },
+  cardTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
     gap: 12,
   },
   activityIcon: {
     fontSize: 24,
   },
-  trailInfo: {
+  cardTitleBlock: {
     flex: 1,
   },
-  trailDate: {
+  trailTitle: {
+    fontFamily: Fonts.medium,
     fontSize: 15,
-    fontWeight: "500",
   },
-  trailPlace: {
+  trailSubtitle: {
+    fontFamily: Fonts.regular,
     fontSize: 13,
     marginTop: 2,
+  },
+  pillRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+    paddingLeft: 36,
+  },
+  pill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  pillText: {
+    fontFamily: Fonts.medium,
+    fontSize: 12,
   },
 });

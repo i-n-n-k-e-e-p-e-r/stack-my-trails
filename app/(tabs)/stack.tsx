@@ -1,20 +1,33 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
-import MapView, { Polyline } from 'react-native-maps';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
-import { getTrailCount } from '@/lib/db';
-import { useTrails } from '@/hooks/use-trails';
-import type { Trail } from '@/lib/geo';
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
+import {
+  StyleSheet,
+  View,
+  Text,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
+import MapView, { Polyline } from "react-native-maps";
+import { Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Colors, Fonts } from "@/constants/theme";
+import { getTrailCount } from "@/lib/db";
+import { useTrails } from "@/hooks/use-trails";
+import type { Trail } from "@/lib/geo";
 
 const TRAIL_WIDTH = 3;
 
 export default function StackScreen() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const mapRef = useRef<MapView>(null);
   const router = useRouter();
@@ -67,7 +80,6 @@ export default function StackScreen() {
     [clusters],
   );
 
-  // Load coordinates on demand
   const [renderedTrails, setRenderedTrails] = useState<Trail[]>([]);
   const [loadingTrails, setLoadingTrails] = useState(false);
 
@@ -90,7 +102,7 @@ export default function StackScreen() {
         if (allCoords.length > 0) {
           setTimeout(() => {
             mapRef.current?.fitToCoordinates(allCoords, {
-              edgePadding: { top: 100, right: 40, bottom: 80, left: 40 },
+              edgePadding: { top: 120, right: 40, bottom: 80, left: 40 },
               animated: true,
             });
           }, 200);
@@ -98,17 +110,19 @@ export default function StackScreen() {
       }
     });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [selectedCluster, loadClusterTrails]);
 
   const openFilters = useCallback(() => {
     router.push({
-      pathname: '/filter-modal',
+      pathname: "/filter-modal",
       params: {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        areaLabels: filterLabels ? JSON.stringify(filterLabels) : '',
-        areaLabel: areaLabel ?? '',
+        areaLabels: filterLabels ? JSON.stringify(filterLabels) : "",
+        areaLabel: areaLabel ?? "",
       },
     });
   }, [router, startDate, endDate, filterLabels, areaLabel]);
@@ -117,18 +131,26 @@ export default function StackScreen() {
 
   if (!hasTrails) {
     return (
-      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
-        <Text style={styles.emptyIcon}>{"\u{1F5FA}"}</Text>
+      <View
+        style={[
+          styles.container,
+          styles.centered,
+          { backgroundColor: colors.background },
+        ]}
+      >
         <Text style={[styles.emptyTitle, { color: colors.text }]}>
           No trails yet
         </Text>
-        <Text style={[styles.emptySubtitle, { color: colors.icon }]}>
+        <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
           Import your workouts first to stack them on the map.
         </Text>
         <TouchableOpacity
-          style={[styles.emptyButton, { backgroundColor: colors.tint }]}
-          onPress={() => router.push("/(tabs)/settings")}>
-          <Text style={styles.emptyButtonText}>Go to Settings</Text>
+          style={[styles.emptyButton, { backgroundColor: colors.accent }]}
+          onPress={() => router.push("/(tabs)/settings")}
+        >
+          <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
+            Go to Settings
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -141,9 +163,12 @@ export default function StackScreen() {
         style={StyleSheet.absoluteFillObject}
         mapType="mutedStandard"
         userInterfaceStyle={colorScheme}
-        showsCompass={true}
-        showsScale={true}
-        pitchEnabled={false}>
+        showsCompass={false}
+        showsScale={false}
+        showsPointsOfInterest={false}
+        showsBuildings={false}
+        pitchEnabled={false}
+      >
         {renderedTrails.map((trail) => (
           <Polyline
             key={trail.workoutId}
@@ -156,43 +181,58 @@ export default function StackScreen() {
         ))}
       </MapView>
 
-      {/* Top bar */}
+      {/* Floating capsule top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <View
           style={[
-            styles.topCard,
+            styles.topCapsule,
             {
-              backgroundColor:
-                colorScheme === 'dark'
-                  ? 'rgba(21, 23, 24, 0.9)'
-                  : 'rgba(255, 255, 255, 0.9)',
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              borderWidth: 2,
             },
-          ]}>
-          <View style={styles.topRow}>
-            <View style={styles.topInfo}>
-              <Text
-                style={[styles.clusterLabel, { color: colors.text }]}
-                numberOfLines={1}>
-                {areaLabel ?? 'Select an area'}
-              </Text>
-              <Text style={[styles.trailCount, { color: colors.icon }]}>
-                {loading || loadingTrails
-                  ? 'Loading...'
-                  : `${renderedTrails.length}${totalInCluster > renderedTrails.length ? ` of ${totalInCluster}` : ''} trails`}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.filterButton, { backgroundColor: colors.tint }]}
-              onPress={openFilters}>
-              <Text style={styles.filterButtonText}>Filters</Text>
-            </TouchableOpacity>
+          ]}
+        >
+          <View style={styles.topInfo}>
+            <Text
+              style={[styles.clusterLabel, { color: colors.text }]}
+              numberOfLines={1}
+            >
+              {areaLabel ?? "Select an area"}
+            </Text>
+            <Text style={[styles.trailCount, { color: colors.textSecondary }]}>
+              {loading || loadingTrails
+                ? "Loading..."
+                : `${renderedTrails.length}${totalInCluster > renderedTrails.length ? ` of ${totalInCluster}` : ""} trails`}
+            </Text>
           </View>
+          <TouchableOpacity
+            style={[
+              styles.filterCircle,
+              {
+                backgroundColor: colors.accent,
+                borderWidth: 2,
+                borderColor: colors.activeSelectionBorder,
+              },
+            ]}
+            onPress={openFilters}
+          >
+            <Feather name="filter" size={24} color={colors.text} />
+          </TouchableOpacity>
         </View>
       </View>
 
       {loadingTrails && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={colors.tint} />
+        <View
+          style={[
+            styles.loadingOverlay,
+            { backgroundColor: `${colors.background}80` },
+          ]}
+        >
+          <ActivityIndicator size="large" color={colors.accent} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Loading trails...
+          </Text>
         </View>
       )}
     </View>
@@ -204,81 +244,77 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   centered: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
   emptyTitle: {
+    fontFamily: Fonts.semibold,
     fontSize: 20,
-    fontWeight: '700',
     marginBottom: 8,
   },
   emptySubtitle: {
+    fontFamily: Fonts.regular,
     fontSize: 15,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
     marginBottom: 24,
   },
   emptyButton: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 999,
   },
   emptyButtonText: {
-    color: '#fff',
+    fontFamily: Fonts.semibold,
     fontSize: 16,
-    fontWeight: '600',
   },
   topBar: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     zIndex: 1,
   },
-  topCard: {
-    marginHorizontal: 12,
-    borderRadius: 16,
-    padding: 14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  topCapsule: {
+    marginHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 20,
+    paddingRight: 12,
+    paddingVertical: 12,
   },
   topInfo: {
     flex: 1,
     marginRight: 12,
   },
   clusterLabel: {
-    fontSize: 17,
-    fontWeight: '600',
+    fontFamily: Fonts.semibold,
+    fontSize: 16,
   },
   trailCount: {
-    fontSize: 13,
-    marginTop: 2,
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    marginTop: 1,
   },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 14,
-  },
-  filterButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+  filterCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontFamily: Fonts.medium,
+    fontSize: 15,
   },
 });

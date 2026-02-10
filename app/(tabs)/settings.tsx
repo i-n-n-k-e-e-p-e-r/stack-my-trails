@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet,
   View,
@@ -6,19 +6,24 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useSQLiteContext } from 'expo-sqlite';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { Colors } from '@/constants/theme';
-import { useImportTrails } from '@/hooks/use-import-trails';
-import { getTrailCount, getLastImportDate, getLatestTrailDate, deleteAllTrails } from '@/lib/db';
-import { useThemePreference, type ThemePreference } from '@/contexts/theme';
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSQLiteContext } from "expo-sqlite";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Colors, Fonts } from "@/constants/theme";
+import { useImportTrails } from "@/hooks/use-import-trails";
+import {
+  getTrailCount,
+  getLastImportDate,
+  getLatestTrailDate,
+  deleteAllTrails,
+} from "@/lib/db";
+import { useThemePreference, type ThemePreference } from "@/contexts/theme";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: 'auto', label: 'Auto' },
-  { value: 'light', label: 'Light' },
-  { value: 'dark', label: 'Dark' },
+  { value: "auto", label: "Auto" },
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
 ];
 
 function formatRelativeDate(iso: string): string {
@@ -26,22 +31,22 @@ function formatRelativeDate(iso: string): string {
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return 'Just now';
+  if (diffMin < 1) return "Just now";
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.floor(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h ago`;
   const diffDay = Math.floor(diffHr / 24);
   if (diffDay < 7) return `${diffDay}d ago`;
   return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
+    month: "short",
+    day: "numeric",
+    year: "numeric",
   });
 }
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const colorScheme = useColorScheme() ?? 'light';
+  const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const db = useSQLiteContext();
   const { preference, setPreference } = useThemePreference();
@@ -67,13 +72,13 @@ export default function SettingsScreen() {
 
   const handleDeleteAll = useCallback(() => {
     Alert.alert(
-      'Delete All Data',
-      'This will remove all imported trails and cached labels. You will need to re-import from Health.',
+      "Delete All Data",
+      "This will remove all imported trails and cached labels. You will need to re-import from Health.",
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete',
-          style: 'destructive',
+          text: "Delete",
+          style: "destructive",
           onPress: async () => {
             setDeleting(true);
             await deleteAllTrails(db);
@@ -84,45 +89,46 @@ export default function SettingsScreen() {
     );
   }, [db]);
 
-  const cardBg = colorScheme === 'dark' ? '#1c1e1f' : '#f5f5f5';
-  const borderColor = colorScheme === 'dark' ? '#2a2d2e' : '#e5e5e5';
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{
+        flexGrow: 1,
         paddingTop: insets.top + 16,
         paddingBottom: insets.bottom + 80,
-      }}>
+      }}
+    >
       <Text style={[styles.screenTitle, { color: colors.text }]}>Settings</Text>
 
       {/* Appearance section */}
-      <View style={[styles.card, { backgroundColor: cardBg }]}>
-        <Text style={[styles.cardTitle, { color: colors.text }]}>
-          Appearance
-        </Text>
-        <View style={styles.themeRow}>
+      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+        APPEARANCE
+      </Text>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
+        <View style={styles.segmentedControl}>
           {THEME_OPTIONS.map((opt) => {
             const isActive = preference === opt.value;
             return (
               <TouchableOpacity
                 key={opt.value}
                 style={[
-                  styles.themeChip,
+                  styles.segment,
                   {
-                    backgroundColor: isActive
-                      ? colors.tint
-                      : colorScheme === 'dark'
-                        ? '#2a2d2e'
-                        : '#e8e8e8',
+                    backgroundColor: isActive ? colors.accent : "transparent",
+                    borderColor: isActive
+                      ? colors.activeSelectionBorder
+                      : colors.border,
+                    borderWidth: 2,
                   },
                 ]}
-                onPress={() => setPreference(opt.value)}>
-                <Text
-                  style={[
-                    styles.themeChipText,
-                    { color: isActive ? '#fff' : colors.text },
-                  ]}>
+                onPress={() => setPreference(opt.value)}
+              >
+                <Text style={[styles.segmentText, { color: colors.text }]}>
                   {opt.label}
                 </Text>
               </TouchableOpacity>
@@ -131,111 +137,153 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* Import section */}
-      <View style={[styles.card, { backgroundColor: cardBg, marginTop: 16 }]}>
-        <Text style={[styles.cardTitle, { color: colors.text }]}>
-          Health Data
-        </Text>
-
+      {/* Health Data section */}
+      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+        HEALTH DATA
+      </Text>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <View
-          style={[styles.statRow, { borderBottomColor: borderColor }]}>
-          <Text style={[styles.statLabel, { color: colors.icon }]}>
-            Imported trails
+          style={[styles.statRow, { borderBottomColor: colors.borderLight }]}
+        >
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+            Total trails
           </Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
             {trailCount}
           </Text>
         </View>
 
-        <View style={styles.statRow}>
-          <Text style={[styles.statLabel, { color: colors.icon }]}>
+        <View style={styles.statRowLast}>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
             Last import
           </Text>
           <Text style={[styles.statValue, { color: colors.text }]}>
-            {lastImport ? formatRelativeDate(lastImport) : 'Never'}
+            {lastImport ? formatRelativeDate(lastImport) : "Never"}
           </Text>
         </View>
+      </View>
 
-        {/* Import progress */}
-        {importing && (
-          <View style={styles.progressSection}>
-            <View style={styles.progressBarBg}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  {
-                    backgroundColor: colors.tint,
-                    width: total > 0 ? `${(progress / total) * 100}%` : '0%',
-                  },
-                ]}
-              />
-            </View>
-            <Text style={[styles.progressText, { color: colors.icon }]}>
-              {total > 0
-                ? `${progress} / ${total} workouts`
-                : 'Fetching workouts...'}
-            </Text>
+      {/* Import progress */}
+      {importing && (
+        <View
+          style={[
+            styles.progressSection,
+            {
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.progressBarBg,
+              {
+                backgroundColor: colors.borderLight,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.progressBarFill,
+                {
+                  backgroundColor: colors.accent,
+                  width: total > 0 ? `${(progress / total) * 100}%` : "0%",
+                },
+              ]}
+            />
           </View>
-        )}
+          <Text style={[styles.progressText, { color: colors.text }]}>
+            {total > 0
+              ? `${progress} / ${total} workouts`
+              : "Fetching workouts..."}
+          </Text>
+        </View>
+      )}
 
-        {error && (
-          <Text style={styles.errorText}>{error}</Text>
-        )}
+      {error && (
+        <Text style={[styles.errorText, { color: colors.danger }]}>
+          {error}
+        </Text>
+      )}
 
+      {/* Import buttons */}
+      <View style={styles.buttonGroup}>
         <TouchableOpacity
           style={[
-            styles.importButton,
+            styles.primaryButton,
             {
-              backgroundColor: colors.tint,
+              backgroundColor: colors.accent,
               opacity: importing ? 0.6 : 1,
+              borderWidth: 2,
+              borderColor: colors.activeSelectionBorder,
             },
           ]}
           onPress={() => startImport()}
-          disabled={importing}>
-          <Text style={styles.importButtonText}>
+          disabled={importing}
+        >
+          <Text style={[styles.primaryButtonText, { color: colors.text }]}>
             {importing
-              ? 'Importing...'
+              ? "Importing..."
               : trailCount > 0
-                ? 'Re-import All'
-                : 'Import from Health'}
+                ? "Re-import All"
+                : "Import from Health"}
           </Text>
         </TouchableOpacity>
 
         {trailCount > 0 && (
           <TouchableOpacity
             style={[
-              styles.importButton,
+              styles.outlinedButton,
               {
-                backgroundColor: 'transparent',
-                borderWidth: 1.5,
-                borderColor: colors.tint,
+                borderColor: colors.border,
                 opacity: importing ? 0.6 : 1,
               },
             ]}
             onPress={handleFetchNew}
-            disabled={importing}>
-            <Text style={[styles.importButtonText, { color: colors.tint }]}>
+            disabled={importing}
+          >
+            <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
               Fetch New Routes
             </Text>
           </TouchableOpacity>
         )}
+      </View>
 
-        <Text style={[styles.importHint, { color: colors.icon }]}>
-          Imports running, walking, cycling, hiking, and open water swimming
-          workouts with GPS routes from Apple Health.
-        </Text>
+      <Text style={[styles.hint, { color: colors.textSecondary }]}>
+        Imports running, walking, cycling, hiking, and open water swimming
+        workouts with GPS routes from Apple Health.
+      </Text>
 
-        {trailCount > 0 && (
+      {/* Data section */}
+      {trailCount > 0 && (
+        <View style={styles.dangerSection}>
           <TouchableOpacity
-            style={[styles.deleteButton, { opacity: importing || deleting ? 0.6 : 1 }]}
+            style={[
+              styles.deleteButton,
+              {
+                borderColor: colors.danger,
+                opacity: importing || deleting ? 0.6 : 1,
+              },
+            ]}
             onPress={handleDeleteAll}
-            disabled={importing || deleting}>
-            <Text style={styles.deleteButtonText}>
-              {deleting ? 'Deleting...' : 'Delete All Data'}
+            disabled={importing || deleting}
+          >
+            <Text style={[styles.deleteButtonText, { color: colors.danger }]}>
+              {deleting ? "Deleting..." : "Delete All Data"}
             </Text>
           </TouchableOpacity>
-        )}
-      </View>
+        </View>
+      )}
+
+      {/* Footer */}
+      <Text style={[styles.footer, { color: colors.textSecondary }]}>
+        Stack My Trails v1.0
+      </Text>
     </ScrollView>
   );
 }
@@ -245,98 +293,140 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   screenTitle: {
-    fontSize: 34,
-    fontWeight: '700',
+    fontFamily: Fonts.bold,
+    fontSize: 28,
     paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 24,
+  },
+  sectionLabel: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    paddingHorizontal: 20,
+    marginBottom: 8,
+    marginTop: 8,
   },
   card: {
     marginHorizontal: 16,
-    borderRadius: 16,
+    borderRadius: 32,
+    borderWidth: 2,
     padding: 16,
+    marginBottom: 16,
   },
-  cardTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  themeRow: {
-    flexDirection: 'row',
+  segmentedControl: {
+    flexDirection: "row",
     gap: 8,
   },
-  themeChip: {
+  segment: {
     flex: 1,
     paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: 'center',
+    borderRadius: 999,
+    alignItems: "center",
   },
-  themeChipText: {
+  segmentText: {
+    fontFamily: Fonts.semibold,
     fontSize: 15,
-    fontWeight: '600',
   },
   statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'transparent',
+  },
+  statRowLast: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 12,
   },
   statLabel: {
+    fontFamily: Fonts.regular,
     fontSize: 15,
   },
   statValue: {
+    fontFamily: Fonts.semibold,
     fontSize: 15,
-    fontWeight: '500',
   },
   progressSection: {
-    marginTop: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 32,
+    borderWidth: 2,
+    alignItems: "center",
+    padding: 16,
   },
   progressBarBg: {
-    height: 6,
-    backgroundColor: 'rgba(128, 128, 128, 0.2)',
-    borderRadius: 3,
-    overflow: 'hidden',
+    height: 16,
+    borderRadius: 999,
+    overflow: "hidden",
+    borderWidth: 1,
+    width: "99%",
   },
   progressBarFill: {
-    height: '100%',
-    borderRadius: 3,
+    height: "100%",
+    borderRadius: 2,
   },
   progressText: {
+    fontFamily: Fonts.regular,
     fontSize: 13,
     marginTop: 6,
-    textAlign: 'center',
+    textAlign: "center",
   },
   errorText: {
-    color: '#ff3b30',
+    fontFamily: Fonts.regular,
     fontSize: 13,
-    marginTop: 8,
+    marginHorizontal: 20,
+    marginBottom: 8,
   },
-  importButton: {
-    marginTop: 16,
+  buttonGroup: {
+    marginHorizontal: 16,
+    gap: 12,
+  },
+  primaryButton: {
     paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
+    borderRadius: 999,
+    alignItems: "center",
   },
-  importButtonText: {
-    color: '#fff',
+  primaryButtonText: {
+    fontFamily: Fonts.semibold,
     fontSize: 16,
-    fontWeight: '600',
   },
-  importHint: {
+  outlinedButton: {
+    paddingVertical: 14,
+    borderRadius: 999,
+    alignItems: "center",
+    borderWidth: 2,
+    backgroundColor: "transparent",
+  },
+  outlinedButtonText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 16,
+  },
+  hint: {
+    fontFamily: Fonts.regular,
     fontSize: 12,
-    marginTop: 10,
+    marginHorizontal: 20,
+    marginTop: 12,
     lineHeight: 16,
   },
+  dangerSection: {
+    marginHorizontal: 16,
+    marginTop: 32,
+  },
   deleteButton: {
-    marginTop: 16,
     paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderRadius: 999,
+    borderWidth: 2,
+    alignItems: "center",
+    backgroundColor: "transparent",
   },
   deleteButtonText: {
-    color: '#ff3b30',
+    fontFamily: Fonts.semibold,
     fontSize: 16,
-    fontWeight: '600',
+  },
+  footer: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 32,
   },
 });

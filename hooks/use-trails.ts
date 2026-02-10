@@ -8,11 +8,15 @@ import {
 import {
   clusterTrails,
   computeBoundingBox,
+  simplifyCoordinates,
   type TrailCluster,
   type Trail,
 } from '@/lib/geo';
 
-const MAX_RENDERED_TRAILS = 50;
+const MAX_RENDERED_TRAILS = 500;
+/** Re-simplify with coarser tolerance when many trails are stacked */
+const RESIMPLIFY_THRESHOLD = 100;
+const COARSE_TOLERANCE = 0.0002;
 
 interface UseTrailsOptions {
   startDate: Date;
@@ -95,7 +99,14 @@ export function useTrails({
   const loadClusterTrails = useCallback(
     async (cluster: TrailCluster): Promise<Trail[]> => {
       const ids = cluster.trailIds.slice(0, MAX_RENDERED_TRAILS);
-      return getTrailsByIds(db, ids);
+      const trails = await getTrailsByIds(db, ids);
+      // Re-simplify with coarser tolerance when rendering many trails
+      if (trails.length > RESIMPLIFY_THRESHOLD) {
+        for (const t of trails) {
+          t.coordinates = simplifyCoordinates(t.coordinates, COARSE_TOLERANCE);
+        }
+      }
+      return trails;
     },
     [db],
   );
