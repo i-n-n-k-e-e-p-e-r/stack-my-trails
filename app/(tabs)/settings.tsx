@@ -90,201 +90,225 @@ export default function SettingsScreen() {
   }, [db]);
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{
-        flexGrow: 1,
-        paddingTop: insets.top + 16,
-        paddingBottom: insets.bottom + 80,
-      }}
-    >
-      <Text style={[styles.screenTitle, { color: colors.text }]}>Settings</Text>
-
-      {/* Appearance section */}
-      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-        APPEARANCE
-      </Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Fixed header */}
       <View
         style={[
-          styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
+          styles.header,
+          {
+            paddingTop: insets.top + 16,
+            backgroundColor: colors.background,
+          },
         ]}
       >
-        <View style={styles.segmentedControl}>
-          {THEME_OPTIONS.map((opt) => {
-            const isActive = preference === opt.value;
-            return (
-              <TouchableOpacity
-                key={opt.value}
-                style={[
-                  styles.segment,
-                  {
-                    backgroundColor: isActive ? colors.accent : "transparent",
-                    borderColor: isActive
-                      ? colors.activeSelectionBorder
-                      : colors.border,
-                    borderWidth: 2,
-                  },
-                ]}
-                onPress={() => setPreference(opt.value)}
-              >
-                <Text style={[styles.segmentText, { color: colors.text }]}>
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <Text style={[styles.screenTitle, { color: colors.text }]}>
+          Settings
+        </Text>
       </View>
 
-      {/* Health Data section */}
-      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-        HEALTH DATA
-      </Text>
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
-        ]}
+      {/* Scrollable content */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{
+          paddingBottom: 24,
+        }}
       >
-        <View
-          style={[styles.statRow, { borderBottomColor: colors.borderLight }]}
-        >
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-            Total trails
-          </Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>
-            {trailCount}
-          </Text>
-        </View>
-
-        <View style={styles.statRowLast}>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-            Last import
-          </Text>
-          <Text style={[styles.statValue, { color: colors.text }]}>
-            {lastImport ? formatRelativeDate(lastImport) : "Never"}
-          </Text>
-        </View>
-      </View>
-
-      {/* Import progress */}
-      {importing && (
+        {/* Appearance section */}
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          APPEARANCE
+        </Text>
         <View
           style={[
-            styles.progressSection,
-            {
-              borderColor: colors.border,
-            },
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
+          ]}
+        >
+          <View style={styles.segmentedControl}>
+            {THEME_OPTIONS.map((opt) => {
+              const isActive = preference === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.segment,
+                    {
+                      backgroundColor: isActive ? colors.accent : "transparent",
+                      borderColor: isActive
+                        ? colors.activeSelectionBorder
+                        : colors.border,
+                      borderWidth: 2,
+                    },
+                  ]}
+                  onPress={() => setPreference(opt.value)}
+                >
+                  <Text style={[styles.segmentText, { color: colors.text }]}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        {/* Health Data section */}
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          HEALTH DATA
+        </Text>
+        <View
+          style={[
+            styles.card,
+            { backgroundColor: colors.surface, borderColor: colors.border },
           ]}
         >
           <View
+            style={[styles.statRow, { borderBottomColor: colors.borderLight }]}
+          >
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              Total trails
+            </Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {trailCount}
+            </Text>
+          </View>
+
+          <View style={styles.statRowLast}>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+              Last import
+            </Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>
+              {lastImport ? formatRelativeDate(lastImport) : "Never"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Import progress */}
+        {importing && (
+          <View
             style={[
-              styles.progressBarBg,
+              styles.progressSection,
               {
-                backgroundColor: colors.borderLight,
                 borderColor: colors.border,
               },
             ]}
           >
             <View
               style={[
-                styles.progressBarFill,
+                styles.progressBarBg,
                 {
-                  backgroundColor: colors.accent,
-                  width: total > 0 ? `${(progress / total) * 100}%` : "0%",
+                  backgroundColor: colors.borderLight,
+                  borderColor: colors.border,
                 },
               ]}
-            />
+            >
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    backgroundColor: colors.accent,
+                    width: total > 0 ? `${(progress / total) * 100}%` : "0%",
+                  },
+                ]}
+              />
+            </View>
+            <Text style={[styles.progressText, { color: colors.text }]}>
+              {total > 0
+                ? `${progress} / ${total} workouts`
+                : "Fetching workouts..."}
+            </Text>
           </View>
-          <Text style={[styles.progressText, { color: colors.text }]}>
-            {total > 0
-              ? `${progress} / ${total} workouts`
-              : "Fetching workouts..."}
+        )}
+
+        {error && (
+          <Text style={[styles.errorText, { color: colors.danger }]}>
+            {error}
           </Text>
-        </View>
-      )}
+        )}
 
-      {error && (
-        <Text style={[styles.errorText, { color: colors.danger }]}>
-          {error}
-        </Text>
-      )}
-
-      {/* Import buttons */}
-      <View style={styles.buttonGroup}>
-        <TouchableOpacity
-          style={[
-            styles.primaryButton,
-            {
-              backgroundColor: colors.accent,
-              opacity: importing ? 0.6 : 1,
-              borderWidth: 2,
-              borderColor: colors.activeSelectionBorder,
-            },
-          ]}
-          onPress={() => startImport()}
-          disabled={importing}
-        >
-          <Text style={[styles.primaryButtonText, { color: colors.text }]}>
-            {importing
-              ? "Importing..."
-              : trailCount > 0
-                ? "Re-import All"
-                : "Import from Health"}
-          </Text>
-        </TouchableOpacity>
-
-        {trailCount > 0 && (
+        {/* Import buttons */}
+        <View style={styles.buttonGroup}>
           <TouchableOpacity
             style={[
-              styles.outlinedButton,
+              styles.primaryButton,
               {
-                borderColor: colors.border,
+                backgroundColor: colors.accent,
                 opacity: importing ? 0.6 : 1,
+                borderWidth: 2,
+                borderColor: colors.activeSelectionBorder,
               },
             ]}
-            onPress={handleFetchNew}
+            onPress={() => startImport()}
             disabled={importing}
           >
-            <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
-              Fetch New Routes
+            <Text style={[styles.primaryButtonText, { color: colors.text }]}>
+              {importing
+                ? "Importing..."
+                : trailCount > 0
+                  ? "Re-import All"
+                  : "Import from Health"}
             </Text>
           </TouchableOpacity>
-        )}
-      </View>
 
-      <Text style={[styles.hint, { color: colors.textSecondary }]}>
-        Imports running, walking, cycling, hiking, and open water swimming
-        workouts with GPS routes from Apple Health.
-      </Text>
-
-      {/* Data section */}
-      {trailCount > 0 && (
-        <View style={styles.dangerSection}>
-          <TouchableOpacity
-            style={[
-              styles.deleteButton,
-              {
-                borderColor: colors.danger,
-                opacity: importing || deleting ? 0.6 : 1,
-              },
-            ]}
-            onPress={handleDeleteAll}
-            disabled={importing || deleting}
-          >
-            <Text style={[styles.deleteButtonText, { color: colors.danger }]}>
-              {deleting ? "Deleting..." : "Delete All Data"}
-            </Text>
-          </TouchableOpacity>
+          {trailCount > 0 && (
+            <TouchableOpacity
+              style={[
+                styles.outlinedButton,
+                {
+                  borderColor: colors.border,
+                  opacity: importing ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleFetchNew}
+              disabled={importing}
+            >
+              <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
+                Fetch New Routes
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
-      )}
 
-      {/* Footer */}
-      <Text style={[styles.footer, { color: colors.textSecondary }]}>
-        Stack My Trails v1.0
-      </Text>
-    </ScrollView>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
+          Imports running, walking, cycling, hiking, and open water swimming
+          workouts with GPS routes from Apple Health.
+        </Text>
+
+        {/* Data section */}
+        {trailCount > 0 && (
+          <View style={styles.dangerSection}>
+            <TouchableOpacity
+              style={[
+                styles.deleteButton,
+                {
+                  borderColor: colors.danger,
+                  opacity: importing || deleting ? 0.6 : 1,
+                },
+              ]}
+              onPress={handleDeleteAll}
+              disabled={importing || deleting}
+            >
+              <Text style={[styles.deleteButtonText, { color: colors.danger }]}>
+                {deleting ? "Deleting..." : "Delete All Data"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Fixed footer */}
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: insets.bottom - 20,
+            backgroundColor: colors.background,
+          },
+        ]}
+      >
+        <Text style={[styles.footerText, { color: colors.textSecondary }]}>
+          © Stack My Trails v1.0
+        </Text>
+      </View>
+    </View>
   );
 }
 
@@ -292,11 +316,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    paddingBottom: 16,
+  },
   screenTitle: {
     fontFamily: Fonts.bold,
     fontSize: 28,
     paddingHorizontal: 20,
-    marginBottom: 24,
+  },
+  scrollView: {
+    flex: 1,
   },
   sectionLabel: {
     fontFamily: Fonts.medium,
@@ -424,9 +453,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   footer: {
+    paddingTop: 16,
+    alignItems: "center",
+  },
+  footerText: {
     fontFamily: Fonts.regular,
     fontSize: 12,
     textAlign: "center",
-    marginTop: 32,
   },
 });
