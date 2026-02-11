@@ -10,6 +10,37 @@ export interface BoundingBox {
   maxLng: number;
 }
 
+/**
+ * Chaikin's corner-cutting: replaces each segment with two points at 25%/75%,
+ * producing smooth curves. One iteration roughly doubles point count.
+ */
+export function smoothCoordinates(
+  coords: Coordinate[],
+  iterations = 1,
+): Coordinate[] {
+  if (coords.length < 3) return coords;
+
+  let result = coords;
+  for (let iter = 0; iter < iterations; iter++) {
+    const smoothed: Coordinate[] = [result[0]];
+    for (let i = 0; i < result.length - 1; i++) {
+      const p0 = result[i];
+      const p1 = result[i + 1];
+      smoothed.push({
+        latitude: p0.latitude * 0.75 + p1.latitude * 0.25,
+        longitude: p0.longitude * 0.75 + p1.longitude * 0.25,
+      });
+      smoothed.push({
+        latitude: p0.latitude * 0.25 + p1.latitude * 0.75,
+        longitude: p0.longitude * 0.25 + p1.longitude * 0.75,
+      });
+    }
+    smoothed.push(result[result.length - 1]);
+    result = smoothed;
+  }
+  return result;
+}
+
 export function computeBoundingBox(coordinates: Coordinate[]): BoundingBox {
   let minLat = Infinity,
     maxLat = -Infinity;

@@ -18,12 +18,7 @@ import {
 import MapView, { type LatLng, type Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import {
-  Canvas,
-  Picture,
-  createPicture,
-  useTypeface,
-} from "@shopify/react-native-skia";
+import { Canvas, Picture, createPicture } from "@shopify/react-native-skia";
 import type { SkPath } from "@shopify/react-native-skia";
 import Slider from "@react-native-community/slider";
 import * as MediaLibrary from "expo-media-library";
@@ -114,8 +109,6 @@ export default function ExportModal() {
   const router = useRouter();
   const viewShotRef = useRef<ViewShot>(null);
   const posterMapRef = useRef<MapView>(null);
-
-  const typeface = useTypeface(require("../assets/fonts/Geist-Bold.otf"));
 
   const { trails, areaLabel, visibleRegion } = useMemo(
     () => getExportData(),
@@ -261,7 +254,6 @@ export default function ExportModal() {
           showLabel,
           showBorder,
           labelText,
-          typeface,
         });
       },
       { width: w, height: h },
@@ -276,7 +268,6 @@ export default function ExportModal() {
     showLabel,
     showBorder,
     labelText,
-    typeface,
   ]);
 
   const captureHighRes = useCallback(async () => {
@@ -331,7 +322,7 @@ export default function ExportModal() {
       <View
         style={[
           styles.header,
-          { paddingTop: insets.top + 8, borderBottomColor: colors.borderLight },
+          { paddingTop: insets.top, borderBottomColor: colors.borderLight },
         ]}
       >
         <Text style={[styles.headerTitle, { color: colors.text }]}>Export</Text>
@@ -366,7 +357,7 @@ export default function ExportModal() {
 
       {/* Poster Preview — full width, no border/radius (WYSIWYG export) */}
       <View
-        style={styles.canvasContainer}
+        style={[styles.canvasContainer, { borderColor: colors.borderLight }]}
         onLayout={(e) => {
           const { width, height } = e.nativeEvent.layout;
           setContainerSize({ width, height });
@@ -429,6 +420,31 @@ export default function ExportModal() {
             >
               {picture && <Picture picture={picture} />}
             </Canvas>
+
+            {showLabel && labelText ? (
+              <View
+                style={[
+                  styles.posterLabelArea,
+                  {
+                    height: Math.round(
+                      canvasHeight * (showBorder ? 0.12 : 0.1),
+                    ),
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.posterLabelText,
+                    {
+                      color: adjustedTheme.labelColor,
+                      fontSize: Math.round(canvasWidth * 0.04),
+                    },
+                  ]}
+                >
+                  {labelText}
+                </Text>
+              </View>
+            ) : null}
           </ViewShot>
         )}
 
@@ -531,7 +547,7 @@ export default function ExportModal() {
       </View>
 
       {/* Sliders with labels */}
-      <View style={styles.sliderSection}>
+      <View style={[styles.sliderSection, { borderColor: colors.border }]}>
         <View style={styles.sliderRow}>
           <Text style={[styles.sliderLabel, { color: colors.textSecondary }]}>
             INTENSITY
@@ -548,9 +564,7 @@ export default function ExportModal() {
           />
         </View>
         <View style={[styles.sliderRow, !tintEnabled && { opacity: 0.3 }]}>
-          <Text style={[styles.sliderLabel, { color: colors.textSecondary }]}>
-            TINT
-          </Text>
+          <Text style={[styles.sliderLabel, { color: colors.text }]}>TINT</Text>
           <Slider
             style={styles.slider}
             minimumValue={0}
@@ -617,6 +631,7 @@ export default function ExportModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    gap: 8,
   },
   header: {
     flexDirection: "row",
@@ -637,7 +652,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    borderWidth: 1.5,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -650,8 +665,8 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 13,
     letterSpacing: 1,
-    borderWidth: 1.5,
-    borderRadius: 12,
+    borderWidth: 2,
+    borderRadius: 32,
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
@@ -660,13 +675,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 24,
-    paddingVertical: 6,
+    paddingVertical: 24,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    marginHorizontal: 16,
+  },
+  posterLabelArea: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  posterLabelText: {
+    fontFamily: Fonts.bold,
+    textAlign: "center",
+    letterSpacing: 1,
   },
   emptyCanvas: {
     width: "100%",
     aspectRatio: CANVAS_ASPECT,
-    borderRadius: 8,
-    borderWidth: 1,
     borderStyle: "dashed",
     alignItems: "center",
     justifyContent: "center",
@@ -686,7 +716,7 @@ const styles = StyleSheet.create({
   optionCircle: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 32,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -696,19 +726,23 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   sliderSection: {
-    paddingHorizontal: 12,
-    gap: 0,
+    paddingHorizontal: 24,
+    borderWidth: 2,
+    borderRadius: 32,
+    paddingVertical: 8,
+    marginHorizontal: 16,
+    gap: 8,
   },
   sliderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 24,
   },
   sliderLabel: {
     fontFamily: Fonts.medium,
-    fontSize: 9,
+    fontSize: 10,
     letterSpacing: 0.5,
-    width: 52,
+    width: 64,
   },
   slider: {
     flex: 1,
@@ -720,6 +754,7 @@ const styles = StyleSheet.create({
   },
   buttonsRow: {
     flexDirection: "row",
+    paddingHorizontal: 4,
     gap: 10,
   },
   primaryButton: {
@@ -744,6 +779,6 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: Fonts.semibold,
-    fontSize: 15,
+    fontSize: 16,
   },
 });

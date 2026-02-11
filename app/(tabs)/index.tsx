@@ -15,7 +15,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { getAllTrailSummaries, getTrailCoordinates } from "@/lib/db";
 import { resolveLabel } from "@/lib/geocode";
-import { bboxCenter } from "@/lib/geo";
+import { bboxCenter, smoothCoordinates } from "@/lib/geo";
 import type { TrailSummary, Coordinate } from "@/lib/geo";
 
 const ACTIVITY_LABELS: Record<number, string> = {
@@ -267,7 +267,7 @@ export default function TrailsScreen() {
         >
           {selectedCoords.length > 0 && (
             <Polyline
-              coordinates={selectedCoords}
+              coordinates={smoothCoordinates(selectedCoords)}
               strokeColor={colors.trailStroke}
               strokeWidth={3.5}
               lineCap="round"

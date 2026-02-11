@@ -21,7 +21,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { getTrailCount } from "@/lib/db";
 import { useTrails } from "@/hooks/use-trails";
-import type { Trail } from "@/lib/geo";
+import { smoothCoordinates, type Trail } from "@/lib/geo";
 import { setExportData } from "@/lib/export-store";
 
 const TRAIL_WIDTH = 3;
@@ -180,7 +180,7 @@ export default function StackScreen() {
         {renderedTrails.map((trail) => (
           <Polyline
             key={trail.workoutId}
-            coordinates={trail.coordinates}
+            coordinates={smoothCoordinates(trail.coordinates)}
             strokeColor={colors.trailStrokeStacked}
             strokeWidth={TRAIL_WIDTH}
             lineCap="round"

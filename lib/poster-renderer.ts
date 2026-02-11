@@ -7,7 +7,7 @@ import {
   BlurStyle,
   TileMode,
 } from '@shopify/react-native-skia';
-import type { SkCanvas, SkPath, SkTypeface } from '@shopify/react-native-skia';
+import type { SkCanvas, SkPath } from '@shopify/react-native-skia';
 import type { Region } from 'react-native-maps';
 import { computeBoundingBox, type Trail } from '@/lib/geo';
 
@@ -268,7 +268,6 @@ export interface PosterOptions {
   showLabel: boolean;
   showBorder: boolean;
   labelText: string;
-  typeface: SkTypeface | null;
 }
 
 export function drawPoster(
@@ -279,9 +278,10 @@ export function drawPoster(
   options: PosterOptions,
 ) {
   const { theme, strokeWidth, opacity, showLabel, labelText } = options;
+  const hasLabel = showLabel && !!labelText;
 
-  // Background is provided by the MapView + tint overlay in the view hierarchy.
-  // The Skia canvas is transparent so the map shows through.
+  // Smooth sharp GPS corners with circular arcs
+  const cornerEffect = Skia.PathEffect.MakeCorner(strokeWidth * 3);
 
   // 1. Glow pass (Noir only)
   if (theme.glow && theme.glowSigma > 0) {
@@ -297,6 +297,7 @@ export function drawPoster(
     glowPaint.setMaskFilter(
       Skia.MaskFilter.MakeBlur(BlurStyle.Normal, theme.glowSigma, true),
     );
+    if (cornerEffect) glowPaint.setPathEffect(cornerEffect);
 
     for (const path of paths) {
       canvas.drawPath(path, glowPaint);
@@ -313,12 +314,11 @@ export function drawPoster(
   trailPaint.setColor(Skia.Color(theme.trailColor));
   trailPaint.setAlphaf(opacity);
   trailPaint.setBlendMode(theme.blendMode);
+  if (cornerEffect) trailPaint.setPathEffect(cornerEffect);
 
   for (const path of paths) {
     canvas.drawPath(path, trailPaint);
   }
-
-  const hasLabel = showLabel && !!labelText;
 
   // 3. Decorative border with solid margin fill (drawn before label so label sits on top)
   if (options.showBorder) {
@@ -388,20 +388,5 @@ export function drawPoster(
     }
   }
 
-  // 5. Label stamp (requires a loaded typeface)
-  if (hasLabel && options.typeface) {
-    const labelPaint = Skia.Paint();
-    labelPaint.setColor(Skia.Color(theme.labelColor));
-    labelPaint.setAntiAlias(true);
-    labelPaint.setBlendMode(BlendMode.SrcOver);
-
-    const fontSize = Math.round(width * 0.04);
-    const font = Skia.Font(options.typeface, fontSize);
-
-    const textWidth = font.measureText(labelText).width;
-    const x = (width - textWidth) / 2;
-    const y = height - Math.round(height * 0.05);
-
-    canvas.drawText(labelText, x, y, labelPaint, font);
-  }
+  // 5. Label text is rendered as a React Native <Text> overlay (supports emoji)
 }
