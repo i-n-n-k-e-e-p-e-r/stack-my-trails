@@ -6,10 +6,17 @@ import {
   StrokeJoin,
   BlurStyle,
   TileMode,
-} from '@shopify/react-native-skia';
-import type { SkCanvas, SkPath } from '@shopify/react-native-skia';
-import type { Region } from 'react-native-maps';
-import { computeBoundingBox, type Trail } from '@/lib/geo';
+  ImageFormat,
+  TextAlign,
+} from "@shopify/react-native-skia";
+import type {
+  SkCanvas,
+  SkPath,
+  SkImage,
+  SkTypeface,
+} from "@shopify/react-native-skia";
+import type { Region } from "react-native-maps";
+import { computeBoundingBox, type Trail } from "@/lib/geo";
 
 // ---------------------------------------------------------------------------
 // Poster themes
@@ -23,67 +30,77 @@ export interface PosterTheme {
   /** Tint overlay opacity (0–1). Higher = less map visible */
   tintOpacity: number;
   /** Map styling: dark or light base map */
-  mapStyle: 'light' | 'dark';
+  mapStyle: "light" | "dark";
   trailColor: string;
   trailOpacity: number;
   blendMode: BlendMode;
   glow: boolean;
   glowSigma: number;
   labelColor: string;
+  buttonBackgroundColor: string;
+  buttonLabelColor: string;
 }
 
 export const POSTER_THEMES: PosterTheme[] = [
   {
-    id: 'noir',
-    name: 'NOIR',
-    tintColor: '#121212',
+    id: "noir",
+    name: "NOIR",
+    tintColor: "#121212",
     tintOpacity: 0.88,
-    mapStyle: 'dark',
-    trailColor: '#FCC803',
+    mapStyle: "dark",
+    trailColor: "#FCC803",
     trailOpacity: 0.25,
     blendMode: BlendMode.Screen,
     glow: true,
     glowSigma: 4,
-    labelColor: '#FCC803',
+    labelColor: "#FCC803",
+    buttonBackgroundColor: "#121212",
+    buttonLabelColor: "#FCC803",
   },
   {
-    id: 'architect',
-    name: 'ARCHITECT',
-    tintColor: '#1B2B48',
+    id: "architect",
+    name: "ARCHITECT",
+    tintColor: "#1B2B48",
     tintOpacity: 0.85,
-    mapStyle: 'dark',
-    trailColor: '#60A5FA',
+    mapStyle: "dark",
+    trailColor: "#60A5FA",
     trailOpacity: 0.25,
     blendMode: BlendMode.Screen,
     glow: false,
     glowSigma: 0,
-    labelColor: '#FFFFFF',
+    labelColor: "#FFFFFF",
+    buttonBackgroundColor: "#1B2B48",
+    buttonLabelColor: "#60A5FA",
   },
   {
-    id: 'minimalist',
-    name: 'MINIMALIST',
-    tintColor: '#FAFAFA',
+    id: "minimalist",
+    name: "MINIMALIST",
+    tintColor: "#FAFAFA",
     tintOpacity: 0.82,
-    mapStyle: 'light',
-    trailColor: '#1A1A2E',
-    trailOpacity: 0.20,
+    mapStyle: "light",
+    trailColor: "#1A1A2E",
+    trailOpacity: 0.2,
     blendMode: BlendMode.Multiply,
     glow: false,
     glowSigma: 0,
-    labelColor: '#1A1A2E',
+    labelColor: "#1A1A2E",
+    buttonBackgroundColor: "#FAFAFA",
+    buttonLabelColor: "#1A1A2E",
   },
   {
-    id: 'clean',
-    name: 'CLEAN',
-    tintColor: '#F5F6F7',
+    id: "clean",
+    name: "CLEAN",
+    tintColor: "#F5F6F7",
     tintOpacity: 0,
-    mapStyle: 'light',
-    trailColor: '#212529',
+    mapStyle: "light",
+    trailColor: "#212529",
     trailOpacity: 0.25,
     blendMode: BlendMode.SrcOver,
     glow: false,
     glowSigma: 0,
-    labelColor: '#212529',
+    labelColor: "#212529",
+    buttonBackgroundColor: "#212529",
+    buttonLabelColor: "#F5F6F7",
   },
 ];
 
@@ -281,18 +298,18 @@ export function drawPoster(
   const hasLabel = showLabel && !!labelText;
 
   // Smooth sharp GPS corners with circular arcs
-  const cornerEffect = Skia.PathEffect.MakeCorner(strokeWidth * 3);
+  const cornerEffect = Skia.PathEffect.MakeCorner(strokeWidth * 1.5);
 
   // 1. Glow pass (Noir only)
   if (theme.glow && theme.glowSigma > 0) {
     const glowPaint = Skia.Paint();
     glowPaint.setStyle(PaintStyle.Stroke);
-    glowPaint.setStrokeWidth(strokeWidth * 2.5);
+    glowPaint.setStrokeWidth(strokeWidth * 2);
     glowPaint.setStrokeCap(StrokeCap.Round);
     glowPaint.setStrokeJoin(StrokeJoin.Round);
     glowPaint.setAntiAlias(true);
     glowPaint.setColor(Skia.Color(theme.trailColor));
-    glowPaint.setAlphaf(opacity * 0.4);
+    glowPaint.setAlphaf(opacity * 0.3);
     glowPaint.setBlendMode(theme.blendMode);
     glowPaint.setMaskFilter(
       Skia.MaskFilter.MakeBlur(BlurStyle.Normal, theme.glowSigma, true),
@@ -304,7 +321,7 @@ export function drawPoster(
     }
   }
 
-  // 2. Trail paths
+  // 2. Trail paths (outer — provides width and soft edges)
   const trailPaint = Skia.Paint();
   trailPaint.setStyle(PaintStyle.Stroke);
   trailPaint.setStrokeWidth(strokeWidth);
@@ -318,6 +335,22 @@ export function drawPoster(
 
   for (const path of paths) {
     canvas.drawPath(path, trailPaint);
+  }
+
+  // 2b. Sharp core pass — thinner, brighter line on top for crisp center
+  const corePaint = Skia.Paint();
+  corePaint.setStyle(PaintStyle.Stroke);
+  corePaint.setStrokeWidth(Math.max(0.5, strokeWidth * 0.35));
+  corePaint.setStrokeCap(StrokeCap.Round);
+  corePaint.setStrokeJoin(StrokeJoin.Round);
+  corePaint.setAntiAlias(true);
+  corePaint.setColor(Skia.Color(theme.trailColor));
+  corePaint.setAlphaf(Math.min(1, opacity * 1.6));
+  corePaint.setBlendMode(theme.blendMode);
+  if (cornerEffect) corePaint.setPathEffect(cornerEffect);
+
+  for (const path of paths) {
+    canvas.drawPath(path, corePaint);
   }
 
   // 3. Decorative border with solid margin fill (drawn before label so label sits on top)
@@ -335,11 +368,30 @@ export function drawPoster(
     // Top
     canvas.drawRect({ x: 0, y: 0, width, height: sideInset }, marginPaint);
     // Bottom (larger when label shown)
-    canvas.drawRect({ x: 0, y: height - bottomInset, width, height: bottomInset }, marginPaint);
+    canvas.drawRect(
+      { x: 0, y: height - bottomInset, width, height: bottomInset },
+      marginPaint,
+    );
     // Left
-    canvas.drawRect({ x: 0, y: sideInset, width: sideInset, height: height - sideInset - bottomInset }, marginPaint);
+    canvas.drawRect(
+      {
+        x: 0,
+        y: sideInset,
+        width: sideInset,
+        height: height - sideInset - bottomInset,
+      },
+      marginPaint,
+    );
     // Right
-    canvas.drawRect({ x: width - sideInset, y: sideInset, width: sideInset, height: height - sideInset - bottomInset }, marginPaint);
+    canvas.drawRect(
+      {
+        x: width - sideInset,
+        y: sideInset,
+        width: sideInset,
+        height: height - sideInset - bottomInset,
+      },
+      marginPaint,
+    );
 
     // Border line — bottom edge stops before the label area
     const borderPaint = Skia.Paint();
@@ -351,7 +403,12 @@ export function drawPoster(
     borderPaint.setBlendMode(BlendMode.SrcOver);
 
     canvas.drawRect(
-      { x: sideInset, y: sideInset, width: width - sideInset * 2, height: height - sideInset - bottomInset },
+      {
+        x: sideInset,
+        y: sideInset,
+        width: width - sideInset * 2,
+        height: height - sideInset - bottomInset,
+      },
       borderPaint,
     );
   }
@@ -389,4 +446,134 @@ export function drawPoster(
   }
 
   // 5. Label text is rendered as a React Native <Text> overlay (supports emoji)
+}
+
+// ---------------------------------------------------------------------------
+// High-resolution offscreen export
+// ---------------------------------------------------------------------------
+
+export const EXPORT_WIDTH = 3000;
+export const EXPORT_HEIGHT = 4000;
+
+/**
+ * Draw poster label text using Skia Paragraph API.
+ * Renders at full export resolution (no bitmap upscaling).
+ */
+function drawPosterLabel(
+  canvas: SkCanvas,
+  width: number,
+  height: number,
+  labelText: string,
+  labelColor: string,
+  showBorder: boolean,
+  typeface: SkTypeface,
+) {
+  const fontSize = Math.round(width * 0.04);
+  const areaH = Math.round(height * (showBorder ? 0.12 : 0.1));
+
+  const provider = Skia.TypefaceFontProvider.Make();
+  provider.registerFont(typeface, "PosterFont");
+
+  const builder = Skia.ParagraphBuilder.Make(
+    {
+      textAlign: TextAlign.Center,
+      textStyle: {
+        color: Skia.Color(labelColor),
+        fontSize,
+        fontFamilies: ["PosterFont"],
+        letterSpacing: fontSize * 0.06,
+      },
+    },
+    provider,
+  );
+  builder.addText(labelText);
+  const paragraph = builder.build();
+  paragraph.layout(width);
+
+  const textH = paragraph.getHeight();
+  const y = height - areaH + (areaH - textH) / 2;
+  paragraph.paint(canvas, 0, y);
+}
+
+/**
+ * Render poster to a high-resolution offscreen Skia surface.
+ * Returns base64-encoded PNG string, or null on failure.
+ *
+ * When showMap is true and mapImage is provided, the captured map screenshot
+ * is drawn as the background (scaled to fill). Otherwise a solid tint color
+ * background is used.
+ */
+export function renderHighResPoster(
+  trails: Trail[],
+  visibleRegion: Region | null,
+  options: PosterOptions,
+  previewWidth: number,
+  showMap: boolean,
+  mapImage: SkImage | null,
+  labelTypeface: SkTypeface | null,
+): string | null {
+  const w = EXPORT_WIDTH;
+  const h = EXPORT_HEIGHT;
+  const scale = w / previewWidth;
+
+  const surface = Skia.Surface.Make(w, h);
+  if (!surface) return null;
+
+  const canvas = surface.getCanvas();
+
+  // 1. Background
+  if (showMap && mapImage) {
+    const paint = Skia.Paint();
+    canvas.drawImageRect(
+      mapImage,
+      { x: 0, y: 0, width: mapImage.width(), height: mapImage.height() },
+      { x: 0, y: 0, width: w, height: h },
+      paint,
+    );
+    // Tint overlay
+    if (options.theme.tintOpacity > 0) {
+      const tintPaint = Skia.Paint();
+      tintPaint.setColor(Skia.Color(options.theme.tintColor));
+      tintPaint.setAlphaf(options.theme.tintOpacity);
+      canvas.drawRect({ x: 0, y: 0, width: w, height: h }, tintPaint);
+    }
+  } else {
+    const bgPaint = Skia.Paint();
+    bgPaint.setColor(Skia.Color(options.theme.tintColor));
+    canvas.drawRect({ x: 0, y: 0, width: w, height: h }, bgPaint);
+  }
+
+  // 2. Build paths at export resolution
+  const padding = showMap ? 0 : 0.04;
+  const transform = buildTransform(trails, w, h, visibleRegion, padding);
+  const paths = buildTrailPaths(trails, transform);
+
+  // 3. Draw trails, border, gradient — scale stroke and glow proportionally
+  const scaledTheme: PosterTheme = {
+    ...options.theme,
+    glowSigma: options.theme.glowSigma * scale,
+  };
+  drawPoster(canvas, w, h, paths, {
+    ...options,
+    theme: scaledTheme,
+    strokeWidth: options.strokeWidth * scale,
+  });
+
+  // 4. Draw label text via Skia Paragraph (sharp at full resolution)
+  if (options.showLabel && options.labelText && labelTypeface) {
+    drawPosterLabel(
+      canvas,
+      w,
+      h,
+      options.labelText,
+      options.theme.labelColor,
+      options.showBorder,
+      labelTypeface,
+    );
+  }
+
+  // 5. Encode to PNG
+  surface.flush();
+  const image = surface.makeImageSnapshot();
+  return image.encodeToBase64(ImageFormat.PNG, 100);
 }

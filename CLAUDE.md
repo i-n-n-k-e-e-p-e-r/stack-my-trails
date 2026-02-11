@@ -5,7 +5,7 @@ React Native (Expo 54) app that reads workout routes from Apple Health and stack
 ## Tech Stack
 
 - **Runtime:** Expo 54, React Native 0.81, TypeScript
-- **Navigation:** Expo Router (file-based), 3 tabs + modal
+- **Navigation:** Expo Router (file-based), 3 tabs + modals (filter, export)
 - **HealthKit:** `@kingstinct/react-native-healthkit` v13 (Nitro Modules / JSI)
 - **Maps:** `react-native-maps` with Apple Maps (no API key needed)
 - **Storage:** `expo-sqlite` for caching imported trail data
@@ -212,6 +212,15 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - **React Navigation tab bar layout issues** — `tabBarStyle` positioning (left/right/width) and `tabBarItemStyle` centering are unreliable for custom shapes; use custom `tabBar` component instead
 - **Geist font loading** — must gate app render with `useFonts()` + `SplashScreen.preventAutoHideAsync()` to prevent FOUT
 - **Filter modal scroll containment** — ScrollView must be INSIDE the bordered card View (not wrapping it) so content clips to rounded corners
+- **expo-file-system modern API** — Expo 54 uses `File`, `Directory`, `Paths` classes (NOT legacy `cacheDirectory`/`writeAsStringAsync`). Write base64: `new File(Paths.cache, 'name.png').write(base64, { encoding: 'base64' })`
+- **Skia offscreen surface for high-res export** — `Skia.Surface.Make(w, h)` creates CPU-backed surface at any resolution. Draw on `surface.getCanvas()`, then `surface.makeImageSnapshot().encodeToBase64(ImageFormat.PNG)`. Much better than ViewShot which is capped at screen resolution.
+- **Skia Paragraph API for text** — `Skia.ParagraphBuilder.Make(style, provider)` with `Skia.TypefaceFontProvider.Make()` + `registerFont()`. Does NOT support emoji (no system font fallback). Use RN `<Text>` for preview (emoji), Skia Paragraph for high-res export (sharp text).
+- **Skia font loading** — `Skia.Data.fromURI(localUri)` + `Skia.Typeface.MakeFreeTypeFaceFromData(data)`. Get local URI via `expo-asset`: `Asset.fromModule(require('path.otf')).downloadAsync()` → `asset.localUri`
+- **ViewShot captures at screen resolution** — `captureRef` with `width: N` upscales, doesn't re-render. For a 350pt canvas on 3x device, max is ~1050px. Use Skia offscreen surface for higher res.
+- **Scale stroke/glow for high-res export** — when rendering at 3000px instead of 350pt, multiply `strokeWidth` and `glowSigma` by `exportWidth / previewWidth` to maintain visual proportions
+- **Trail blur at high intensity is expected** — wider strokes + Screen blending + corner smoothing create soft look. Fix: add a "sharp core pass" — thin bright line (strokeWidth * 0.35, opacity * 1.6) drawn on top for crisp centers
+- **WYSIWYG export** — ViewShot captures everything including RN styling (borderRadius, borderWidth). Remove visual styling from ViewShot container for clean poster edges.
+- **Decorative border with label** — use asymmetric bottom margin (12% for label area, 3.5% for sides). Fill margins with solid tintColor rects (covers trail edges). Draw gradient only when border is OFF.
 
 ## Build & Run
 
@@ -234,51 +243,78 @@ npx expo lint
 
 ### Export Architecture
 ```
-Stack Screen → [setExportData] → export-store → [getExportData] → Export Modal → Skia Canvas → ViewShot → Camera Roll / Share
+Stack Screen → [setExportData] → export-store → [getExportData] → Export Modal
+  Preview: MapView + Skia Canvas (screen res)
+  Export:  Skia.Surface.Make (3000×4000) → base64 PNG → expo-file-system → Camera Roll / Share
 ```
 
 - **Framing on Stack tab** — user zooms/pans MapView to compose, then taps export. Visible map region is captured and used as coordinate bounds for the poster.
 - **Module-level store** (`lib/export-store.ts`) passes trail data + visible region between screens (avoids serializing coordinates via router params)
-- **Skia canvas rendering** with `createPicture()` + `<Picture>` component pattern
+- **Preview:** Skia `createPicture()` + `<Picture>` for real-time rendering at screen resolution
+- **Export:** Offscreen `Skia.Surface.Make(3000, 4000)` renders at full resolution, bypassing ViewShot screen-resolution limitation
 - **Additive blending** (`BlendMode.Screen`) — overlapping trails naturally intensify
-- **High-res export** — `captureRef` at 3x canvas resolution via `react-native-view-shot`
+- **Trail rendering:** 3-pass technique — glow (Noir only) → wide soft stroke → thin bright core line for sharp centers
+- **Corner smoothing:** `Skia.PathEffect.MakeCorner(strokeWidth * 1.5)` for GPS trail paths; Chaikin's algorithm for native map Polylines
 
 ### Export Dependencies
-- `@shopify/react-native-skia` — Skia canvas for poster rendering
-- `react-native-view-shot` — High-res PNG capture
+- `@shopify/react-native-skia` — Skia canvas for poster rendering + offscreen surface for high-res export
+- `react-native-view-shot` — MapView capture for poster background (export), preview display
 - `expo-media-library` — Save to camera roll
-- `@react-native-community/slider` — Intensity slider
+- `expo-file-system` — Write base64 PNG to temp file for export (`File` + `Paths` new API, NOT legacy `cacheDirectory`)
+- `@react-native-community/slider` — Intensity + tint sliders
 
-### 3 Poster Themes (`lib/poster-renderer.ts`)
+### 4 Poster Themes (`lib/poster-renderer.ts`)
 | Theme | Map Tint | Tint Opacity | Trail Color | Blend | Special |
 |-------|----------|--------------|-------------|-------|---------|
-| **Noir** | `#121212` | 0.75 | `#2DD4BF` teal | Screen | Glow blur layer, dark map |
-| **Architect** | `#1B2B48` navy | 0.70 | `#60A5FA` sky | Screen | Dark map, no glow |
-| **Minimalist** | `#FAFAFA` off-white | 0.55 | `#1A1A2E` dark | Multiply | Light map, no glow |
+| **Noir** | `#121212` | 0.88 | `#FCC803` yellow | Screen | Glow blur layer, dark map |
+| **Architect** | `#1B2B48` navy | 0.85 | `#60A5FA` sky | Screen | Dark map, no glow |
+| **Minimalist** | `#FAFAFA` off-white | 0.82 | `#1A1A2E` dark | Multiply | Light map, no glow |
+| **Clean** | `#F5F6F7` | 0 | `#212529` dark | SrcOver | No tint, no glow |
 
 ### Export Modal (`app/export-modal.tsx`)
 - Full-screen modal, registered in root layout
-- **Poster stack:** MapView (pale city roads) → theme tint overlay → transparent Skia canvas (trails + label)
-- Bottom controls: theme selector, intensity slider, editable label with toggle, save/share buttons
-- MapView: non-interactive, `mutedStandard`, themed `userInterfaceStyle`, same region as Stack screen
-- Tint overlay: theme-colored semi-transparent View dims the map to match poster theme
-- Skia canvas: transparent (`opaque={false}`), trails rendered with additive blending within Skia layer
-- Label: editable TextInput (initialized from area label + year), user can type custom text
+- **Layout (top→bottom):** header → label input (always visible) → poster preview → options row → sliders → buttons
+- **Poster preview stack:** MapView (pale city roads) → theme tint overlay → transparent Skia canvas (trails)
+- **Options row:** 4 theme color bullets | separator | 3 toggle buttons (label, map, border)
+- **Sliders:** INTENSITY (stroke width + opacity) + TINT (HSL hue shift, only for Noir/Clean themes)
+- **Decorative border:** Solid tint-colored margin with inner frame line; bottom margin enlarged for label ("picture with signature" style)
+- **Label:** RN `<Text>` overlay in preview (supports emoji); Skia Paragraph API in high-res export (Geist-Bold, no emoji)
+- **High-res export pipeline:**
+  1. Capture MapView as base64 PNG (if map shown)
+  2. `renderHighResPoster()` → offscreen Skia surface at 3000×4000
+  3. Draws map bg (scaled), tint overlay, trails, border, gradient, label at full resolution
+  4. Encodes to base64 PNG → writes to temp file via `expo-file-system`
+- **Tint slider:** HSL hue rotation on trail color; Clean theme boosts saturation (0.65) and lightness (0.45) for vivid tints
 - Cleanup: `clearExportData()` on unmount to free trail data from memory
 
 ### Coordinate Transform (`lib/poster-renderer.ts:buildTransform()`)
-- Maps GPS lat/lng to Skia canvas pixel space
+- Maps GPS lat/lng to Skia canvas pixel space using Web Mercator projection (matching Apple Maps)
 - Uses visible map region as bounds (matches user's framing on Stack tab)
+- `cropRegionToAspect()` crops region to 3:4 poster aspect ratio using Mercator projection
 - Falls back to trail bounding box if no region provided
-- Preserves aspect ratio with padding
+- Single Mercator scale for both axes to preserve proportions
+
+### Trail Smoothing (`lib/geo.ts:smoothCoordinates()`)
+- **Chaikin's corner-cutting algorithm** — replaces each segment with 25%/75% interpolated points
+- Applied to native map Polylines on Stack tab and Trails tab (1 iteration)
+- Skia paths use `PathEffect.MakeCorner()` instead (Skia-native, more efficient)
+
+### High-Res Export (`lib/poster-renderer.ts:renderHighResPoster()`)
+- Creates `Skia.Surface.Make(3000, 4000)` offscreen CPU surface
+- Scales strokeWidth and glowSigma proportionally (`exportWidth / previewWidth`)
+- Map background: captured MapView image drawn scaled to fill (screen-res map is acceptable for muted bg)
+- Label: Skia Paragraph API with Geist-Bold loaded via `Skia.Typeface.MakeFreeTypeFaceFromData()`
+- Returns base64-encoded PNG string
 
 ### Performance
 - Paths memoized separately from drawing (paths depend on trails/region, drawing depends on theme/opacity)
 - Slider changes only re-create the Skia Picture (cheap), not the paths (expensive)
+- Font typeface loaded once on modal mount via `expo-asset` + `Skia.Data.fromURI()`
 
 ### Known Limitations
-- Label stamp uses Skia's default typeface, not Geist (Skia typeface loading is separate from expo-font)
+- Emoji in label text works in preview (RN Text) but NOT in high-res export (Skia Paragraph has no emoji font fallback)
 - No pinch-to-zoom on export canvas (framing is done on Stack tab's MapView instead)
+- Map background in export is at screen resolution (captured via ViewShot); trails/border/label are at full 3000×4000 resolution
 - Multi-color heatmap gradient (blue→red) not implemented (using single-color additive blending)
 
 ## App Config Notes

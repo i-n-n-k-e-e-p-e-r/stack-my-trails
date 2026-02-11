@@ -18,10 +18,16 @@ import {
 import MapView, { type LatLng, type Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Canvas, Picture, createPicture } from "@shopify/react-native-skia";
-import type { SkPath } from "@shopify/react-native-skia";
+import {
+  Canvas,
+  Picture,
+  Skia,
+  createPicture,
+} from "@shopify/react-native-skia";
+import type { SkPath, SkTypeface } from "@shopify/react-native-skia";
 import Slider from "@react-native-community/slider";
 import * as MediaLibrary from "expo-media-library";
+import { File as ExpoFile, Paths } from "expo-file-system";
 import ViewShot, { captureRef } from "react-native-view-shot";
 import { Feather } from "@expo/vector-icons";
 
@@ -35,6 +41,7 @@ import {
   buildTrailPaths,
   drawPoster,
   cropRegionToAspect,
+  renderHighResPoster,
   type PosterTheme,
 } from "@/lib/poster-renderer";
 
@@ -42,7 +49,7 @@ const INTENSITY_MIN_STROKE = 1.0;
 const INTENSITY_MAX_STROKE = 4.0;
 const INTENSITY_MIN_OPACITY = 0.15;
 const INTENSITY_MAX_OPACITY = 0.5;
-const INTENSITY_DEFAULT = 0.4;
+const INTENSITY_DEFAULT = 0.3;
 
 const CANVAS_ASPECT = 3 / 4;
 
@@ -129,6 +136,27 @@ export default function ExportModal() {
     return `${city.toUpperCase()} \u2014 ${year}`;
   });
   const [exporting, setExporting] = useState(false);
+  const [labelTypeface, setLabelTypeface] = useState<SkTypeface | null>(null);
+
+  // Load Geist-Bold typeface for high-res label rendering
+  useEffect(() => {
+    (async () => {
+      try {
+        const { Asset } = await import("expo-asset");
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fontAsset = Asset.fromModule(
+          require("@/assets/fonts/Geist-Bold.otf"),
+        );
+        await fontAsset.downloadAsync();
+        if (!fontAsset.localUri) return;
+        const fontData = await Skia.Data.fromURI(fontAsset.localUri);
+        const tf = Skia.Typeface.MakeFreeTypeFaceFromData(fontData);
+        if (tf) setLabelTypeface(tf);
+      } catch {
+        // Font loading failed — label will fall back to ViewShot capture
+      }
+    })();
+  }, []);
 
   const strokeWidth =
     INTENSITY_MIN_STROKE +
@@ -270,16 +298,61 @@ export default function ExportModal() {
     labelText,
   ]);
 
-  const captureHighRes = useCallback(async () => {
-    if (!viewShotRef.current) return null;
-    return captureRef(viewShotRef, {
-      format: "png",
-      quality: 1,
-      result: "tmpfile",
-      width: canvasWidth * 3,
-      height: canvasHeight * 3,
-    });
-  }, [canvasWidth, canvasHeight]);
+  const captureHighRes = useCallback(async (): Promise<string | null> => {
+    if (canvasWidth === 0 || trails.length === 0) return null;
+
+    // Capture map background if shown (at screen resolution — acceptable for muted bg)
+    let mapImage = null;
+    if (showMap && posterMapRef.current) {
+      try {
+        const mapBase64 = await captureRef(posterMapRef, {
+          format: "png",
+          quality: 1,
+          result: "base64",
+        });
+        const mapData = Skia.Data.fromBase64(mapBase64);
+        mapImage = Skia.Image.MakeImageFromEncoded(mapData);
+      } catch {
+        // Map capture failed — continue without map background
+      }
+    }
+
+    // Render everything at high resolution via offscreen Skia surface
+    const base64 = renderHighResPoster(
+      trails,
+      transformRegion,
+      {
+        theme: adjustedTheme,
+        strokeWidth,
+        opacity,
+        showLabel,
+        showBorder,
+        labelText,
+      },
+      canvasWidth,
+      showMap,
+      mapImage,
+      labelTypeface,
+    );
+    if (!base64) return null;
+
+    // Write base64 PNG to temp file
+    const tmpFile = new ExpoFile(Paths.cache, `poster-${Date.now()}.png`);
+    tmpFile.write(base64, { encoding: "base64" });
+    return tmpFile.uri;
+  }, [
+    canvasWidth,
+    trails,
+    showMap,
+    transformRegion,
+    adjustedTheme,
+    strokeWidth,
+    opacity,
+    showLabel,
+    showBorder,
+    labelText,
+    labelTypeface,
+  ]);
 
   const handleSave = useCallback(async () => {
     setExporting(true);
@@ -469,15 +542,17 @@ export default function ExportModal() {
               style={[
                 styles.optionCircle,
                 {
-                  backgroundColor: active ? colors.accent : theme.tintColor,
-                  borderColor: active
-                    ? colors.activeSelectionBorder
-                    : theme.trailColor,
-                  borderWidth: active ? 2 : 1.5,
+                  backgroundColor: theme.buttonBackgroundColor,
+                  borderColor: theme.buttonLabelColor,
+                  borderWidth: active ? 3 : 1.5,
                 },
               ]}
               onPress={() => setSelectedTheme(theme)}
-            />
+            >
+              {active && (
+                <Feather name="star" size={16} color={theme.buttonLabelColor} />
+              )}
+            </TouchableOpacity>
           );
         })}
 
@@ -493,7 +568,7 @@ export default function ExportModal() {
               borderColor: showLabel
                 ? colors.activeSelectionBorder
                 : colors.borderLight,
-              borderWidth: showLabel ? 2 : 1.5,
+              borderWidth: showLabel ? 3 : 1.5,
             },
           ]}
           onPress={() => setShowLabel(!showLabel)}
@@ -513,7 +588,7 @@ export default function ExportModal() {
               borderColor: showMap
                 ? colors.activeSelectionBorder
                 : colors.borderLight,
-              borderWidth: showMap ? 2 : 1.5,
+              borderWidth: showMap ? 3 : 1.5,
             },
           ]}
           onPress={() => setShowMap(!showMap)}
@@ -533,7 +608,7 @@ export default function ExportModal() {
               borderColor: showBorder
                 ? colors.activeSelectionBorder
                 : colors.borderLight,
-              borderWidth: showBorder ? 2 : 1.5,
+              borderWidth: showBorder ? 3 : 1.5,
             },
           ]}
           onPress={() => setShowBorder(!showBorder)}
