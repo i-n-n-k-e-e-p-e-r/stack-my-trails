@@ -318,8 +318,46 @@ export function drawPoster(
     canvas.drawPath(path, trailPaint);
   }
 
-  // 3. Label background gradient (fades from transparent to tintColor)
-  if (showLabel && labelText) {
+  const hasLabel = showLabel && !!labelText;
+
+  // 3. Decorative border with solid margin fill (drawn before label so label sits on top)
+  if (options.showBorder) {
+    const sideInset = Math.round(width * 0.035);
+    // When label is shown, enlarge bottom margin — label sits below the frame
+    const bottomInset = hasLabel ? Math.round(height * 0.12) : sideInset;
+
+    // Fill margin area with solid tint color (covers trails at edges)
+    const marginPaint = Skia.Paint();
+    marginPaint.setColor(Skia.Color(theme.tintColor));
+    marginPaint.setAntiAlias(true);
+    marginPaint.setBlendMode(BlendMode.SrcOver);
+
+    // Top
+    canvas.drawRect({ x: 0, y: 0, width, height: sideInset }, marginPaint);
+    // Bottom (larger when label shown)
+    canvas.drawRect({ x: 0, y: height - bottomInset, width, height: bottomInset }, marginPaint);
+    // Left
+    canvas.drawRect({ x: 0, y: sideInset, width: sideInset, height: height - sideInset - bottomInset }, marginPaint);
+    // Right
+    canvas.drawRect({ x: width - sideInset, y: sideInset, width: sideInset, height: height - sideInset - bottomInset }, marginPaint);
+
+    // Border line — bottom edge stops before the label area
+    const borderPaint = Skia.Paint();
+    borderPaint.setStyle(PaintStyle.Stroke);
+    borderPaint.setStrokeWidth(Math.max(1, Math.round(width * 0.003)));
+    borderPaint.setColor(Skia.Color(theme.labelColor));
+    borderPaint.setAlphaf(0.5);
+    borderPaint.setAntiAlias(true);
+    borderPaint.setBlendMode(BlendMode.SrcOver);
+
+    canvas.drawRect(
+      { x: sideInset, y: sideInset, width: width - sideInset * 2, height: height - sideInset - bottomInset },
+      borderPaint,
+    );
+  }
+
+  // 4. Label background gradient (only when no border — border margin already provides solid bg)
+  if (hasLabel && !options.showBorder) {
     const gradientH = Math.round(height * 0.25);
     const gradientTop = height - gradientH;
 
@@ -336,7 +374,7 @@ export function drawPoster(
       { x: 0, y: height },
       [
         Skia.Color(`rgba(${r}, ${g}, ${b}, 0)`),
-        Skia.Color(`rgba(${r}, ${g}, ${b}, 0.85)`),
+        Skia.Color(`rgba(${r}, ${g}, ${b}, 0.97)`),
       ],
       [0, 1],
       TileMode.Clamp,
@@ -350,8 +388,8 @@ export function drawPoster(
     }
   }
 
-  // 4. Label stamp (requires a loaded typeface)
-  if (showLabel && labelText && options.typeface) {
+  // 5. Label stamp (requires a loaded typeface)
+  if (hasLabel && options.typeface) {
     const labelPaint = Skia.Paint();
     labelPaint.setColor(Skia.Color(theme.labelColor));
     labelPaint.setAntiAlias(true);
@@ -365,35 +403,5 @@ export function drawPoster(
     const y = height - Math.round(height * 0.05);
 
     canvas.drawText(labelText, x, y, labelPaint, font);
-  }
-
-  // 5. Decorative border with solid margin fill
-  if (options.showBorder) {
-    const inset = Math.round(width * 0.035);
-
-    // Fill margin area with solid tint color (covers trails at edges)
-    const marginPaint = Skia.Paint();
-    marginPaint.setColor(Skia.Color(theme.tintColor));
-    marginPaint.setAntiAlias(true);
-    marginPaint.setBlendMode(BlendMode.SrcOver);
-
-    canvas.drawRect({ x: 0, y: 0, width, height: inset }, marginPaint);
-    canvas.drawRect({ x: 0, y: height - inset, width, height: inset }, marginPaint);
-    canvas.drawRect({ x: 0, y: inset, width: inset, height: height - inset * 2 }, marginPaint);
-    canvas.drawRect({ x: width - inset, y: inset, width: inset, height: height - inset * 2 }, marginPaint);
-
-    // Border line
-    const borderPaint = Skia.Paint();
-    borderPaint.setStyle(PaintStyle.Stroke);
-    borderPaint.setStrokeWidth(Math.max(1, Math.round(width * 0.003)));
-    borderPaint.setColor(Skia.Color(theme.labelColor));
-    borderPaint.setAlphaf(0.5);
-    borderPaint.setAntiAlias(true);
-    borderPaint.setBlendMode(BlendMode.SrcOver);
-
-    canvas.drawRect(
-      { x: inset, y: inset, width: width - inset * 2, height: height - inset * 2 },
-      borderPaint,
-    );
   }
 }
