@@ -266,6 +266,7 @@ export interface PosterOptions {
   strokeWidth: number;
   opacity: number;
   showLabel: boolean;
+  showBorder: boolean;
   labelText: string;
   typeface: SkTypeface | null;
 }
@@ -364,5 +365,35 @@ export function drawPoster(
     const y = height - Math.round(height * 0.05);
 
     canvas.drawText(labelText, x, y, labelPaint, font);
+  }
+
+  // 5. Decorative border with solid margin fill
+  if (options.showBorder) {
+    const inset = Math.round(width * 0.035);
+
+    // Fill margin area with solid tint color (covers trails at edges)
+    const marginPaint = Skia.Paint();
+    marginPaint.setColor(Skia.Color(theme.tintColor));
+    marginPaint.setAntiAlias(true);
+    marginPaint.setBlendMode(BlendMode.SrcOver);
+
+    canvas.drawRect({ x: 0, y: 0, width, height: inset }, marginPaint);
+    canvas.drawRect({ x: 0, y: height - inset, width, height: inset }, marginPaint);
+    canvas.drawRect({ x: 0, y: inset, width: inset, height: height - inset * 2 }, marginPaint);
+    canvas.drawRect({ x: width - inset, y: inset, width: inset, height: height - inset * 2 }, marginPaint);
+
+    // Border line
+    const borderPaint = Skia.Paint();
+    borderPaint.setStyle(PaintStyle.Stroke);
+    borderPaint.setStrokeWidth(Math.max(1, Math.round(width * 0.003)));
+    borderPaint.setColor(Skia.Color(theme.labelColor));
+    borderPaint.setAlphaf(0.5);
+    borderPaint.setAntiAlias(true);
+    borderPaint.setBlendMode(BlendMode.SrcOver);
+
+    canvas.drawRect(
+      { x: inset, y: inset, width: width - inset * 2, height: height - inset * 2 },
+      borderPaint,
+    );
   }
 }
