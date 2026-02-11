@@ -24,6 +24,10 @@ function InnerLayout() {
           name="filter-modal"
           options={{ presentation: 'modal', title: 'Filters' }}
         />
+        <Stack.Screen
+          name="export-modal"
+          options={{ presentation: 'fullScreenModal', headerShown: false }}
+        />
       </Stack>
       <StatusBar style="auto" />
     </NavThemeProvider>

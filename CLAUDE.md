@@ -22,10 +22,11 @@ React Native (Expo 54) app that reads workout routes from Apple Health and stack
 app/
   _layout.tsx             — Root layout (SQLiteProvider + ThemeProvider + font loading + Stack)
   filter-modal.tsx        — Modal: date range + area selection filters (two-level: city groups → sub-areas)
+  export-modal.tsx        — Modal: Skia poster export (theme picker, intensity, label, save/share)
   (tabs)/
     _layout.tsx           — Custom tab bar (floating capsule, Feather icons, circle active state)
     index.tsx             — Tab 1: trail list with preview map, empty state with import link
-    stack.tsx             — Tab 2: stacked trails map with label-based area filtering
+    stack.tsx             — Tab 2: stacked trails map with label-based area filtering + export button
     settings.tsx          — Tab 3: import + theme selector + delete all data
 hooks/
   use-trails.ts           — SQLite → clustering for stack view, optional label-based filtering
@@ -34,6 +35,8 @@ lib/
   db.ts                   — SQLite database layer (schema v7, CRUD, migrations, label cache, settings)
   geo.ts                  — Bounding box, haversine, Douglas-Peucker, clustering, GPS outlier filter
   geocode.ts              — Shared reverse geocoding: SQLite cache → expo-location fallback
+  export-store.ts         — Module-level store for passing trail data to export modal
+  poster-renderer.ts      — Skia poster rendering: coordinate transform, themes, path building, drawing
 contexts/
   theme.tsx               — ThemeProvider with Appearance.setColorScheme() + SQLite persistence
 assets/
@@ -227,47 +230,62 @@ npx tsc --noEmit
 npx expo lint
 ```
 
-## Next Up: Phase 2 — Export / Poster Flow
+## Phase 2: Export / Poster Flow (Implemented)
 
-> **For the next agent:** Phase 1 (visual overhaul) is complete. Phase 2 is the export feature. Start here.
+### Export Architecture
+```
+Stack Screen → [setExportData] → export-store → [getExportData] → Export Modal → Skia Canvas → ViewShot → Camera Roll / Share
+```
 
-### Context Files to Read First
-1. **`docs/plans/2026-02-09-visual-overhaul-and-export-design.md`** — Full design document covering both phases. Phase 2 section has the complete spec for the export flow including Skia rendering, poster themes, and UI.
-2. **`styles-refactoring/StackMyTrails_Blueprint.md`** — Original app blueprint with export flow concepts
-3. **`styles-refactoring/exported-posters-variants.webp`** — Visual reference for poster output styles
-4. **`styles-refactoring/pallete.json`** — Design palette (`#212529` dark, `#F5F6F7` light, `#FCC803` accent)
-5. **`constants/theme.ts`** — Current B&W + accent color tokens (use these, don't reinvent)
-6. **`app/(tabs)/stack.tsx`** — Stack map screen (the export button will live here)
-7. **`hooks/use-trails.ts`** — Trail data loading + clustering (export will consume same data)
+- **Framing on Stack tab** — user zooms/pans MapView to compose, then taps export. Visible map region is captured and used as coordinate bounds for the poster.
+- **Module-level store** (`lib/export-store.ts`) passes trail data + visible region between screens (avoids serializing coordinates via router params)
+- **Skia canvas rendering** with `createPicture()` + `<Picture>` component pattern
+- **Additive blending** (`BlendMode.Screen`) — overlapping trails naturally intensify
+- **High-res export** — `captureRef` at 3x canvas resolution via `react-native-view-shot`
 
-### What Phase 2 Involves
-- **New dependencies:** `@shopify/react-native-skia`, `react-native-view-shot`, `expo-media-library` (all require prebuild)
-- **Skia canvas rendering** with additive blending for true heatmap intensity visualization
-- **3 poster themes:**
-  - **Noir** — dark bg, **neon glow effect** with cold-to-hot color gradient (blue→cyan→green→yellow→red) based on trail overlap frequency. Most-visited areas glow hot, less-visited glow cold.
-  - **Architect** — light bg, dark trails
-  - **Minimalist** — white bg, single accent color
-- **Export modal/screen** with: poster preview, theme selector, intensity slider, label stamp toggle, high-res PNG export to camera roll
-- **The export button** should be added to the Stack screen (next to or replacing the filter button, or as a separate action)
-- **Two-tier rendering:** Live map uses opacity stacking (current), export uses Skia additive blending for premium output
+### Export Dependencies
+- `@shopify/react-native-skia` — Skia canvas for poster rendering
+- `react-native-view-shot` — High-res PNG capture
+- `expo-media-library` — Save to camera roll
+- `@react-native-community/slider` — Intensity slider
 
-### Design Decisions Already Made
-- Trail coloring by **intensity** (overlap frequency), NOT per-activity type
-- Opacity stacking on live map, Skia for export — two-tier approach
-- Keep `StyleSheet.create()` (no NativeWind)
-- B&W + `#FCC803` accent design language carries into export UI
-- Capsule buttons, solid borders, Geist font — same visual language
+### 3 Poster Themes (`lib/poster-renderer.ts`)
+| Theme | Map Tint | Tint Opacity | Trail Color | Blend | Special |
+|-------|----------|--------------|-------------|-------|---------|
+| **Noir** | `#121212` | 0.75 | `#2DD4BF` teal | Screen | Glow blur layer, dark map |
+| **Architect** | `#1B2B48` navy | 0.70 | `#60A5FA` sky | Screen | Dark map, no glow |
+| **Minimalist** | `#FAFAFA` off-white | 0.55 | `#1A1A2E` dark | Multiply | Light map, no glow |
 
-### Important Notes
-- After installing Skia/view-shot/media-library: `npx expo prebuild --platform ios --clean && npx expo run:ios --device`
-- Skia's `Canvas` is NOT a MapView — you render trail coordinates directly onto a Skia canvas for the poster
-- The poster is a static image, not an interactive map — transform trail coordinates to canvas pixel space
-- Check Skia compatibility with Expo 54 / New Architecture before installing
+### Export Modal (`app/export-modal.tsx`)
+- Full-screen modal, registered in root layout
+- **Poster stack:** MapView (pale city roads) → theme tint overlay → transparent Skia canvas (trails + label)
+- Bottom controls: theme selector, intensity slider, editable label with toggle, save/share buttons
+- MapView: non-interactive, `mutedStandard`, themed `userInterfaceStyle`, same region as Stack screen
+- Tint overlay: theme-colored semi-transparent View dims the map to match poster theme
+- Skia canvas: transparent (`opaque={false}`), trails rendered with additive blending within Skia layer
+- Label: editable TextInput (initialized from area label + year), user can type custom text
+- Cleanup: `clearExportData()` on unmount to free trail data from memory
+
+### Coordinate Transform (`lib/poster-renderer.ts:buildTransform()`)
+- Maps GPS lat/lng to Skia canvas pixel space
+- Uses visible map region as bounds (matches user's framing on Stack tab)
+- Falls back to trail bounding box if no region provided
+- Preserves aspect ratio with padding
+
+### Performance
+- Paths memoized separately from drawing (paths depend on trails/region, drawing depends on theme/opacity)
+- Slider changes only re-create the Skia Picture (cheap), not the paths (expensive)
+
+### Known Limitations
+- Label stamp uses Skia's default typeface, not Geist (Skia typeface loading is separate from expo-font)
+- No pinch-to-zoom on export canvas (framing is done on Stack tab's MapView instead)
+- Multi-color heatmap gradient (blue→red) not implemented (using single-color additive blending)
 
 ## App Config Notes
 
-- `app.json` plugins: `expo-router`, `expo-splash-screen`, `@kingstinct/react-native-healthkit`, `expo-sqlite`, `@react-native-community/datetimepicker`
+- `app.json` plugins: `expo-router`, `expo-splash-screen`, `@kingstinct/react-native-healthkit`, `expo-sqlite`, `@react-native-community/datetimepicker`, `expo-media-library`
 - HealthKit plugin: `NSHealthShareUsageDescription`, `NSHealthUpdateUsageDescription: false`, `background: false`
+- Media library plugin: `photosPermission` + `savePhotosPermission` for camera roll access
 - New Architecture enabled (`newArchEnabled: true`)
 - Typed routes enabled (`experiments.typedRoutes: true`)
 - `expo-location` added for reverse geocoding (no special plugin needed)

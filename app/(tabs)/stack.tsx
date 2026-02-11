@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import MapView, { Polyline } from "react-native-maps";
+import MapView, { Polyline, type Region } from "react-native-maps";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
@@ -22,6 +22,7 @@ import { Colors, Fonts } from "@/constants/theme";
 import { getTrailCount } from "@/lib/db";
 import { useTrails } from "@/hooks/use-trails";
 import type { Trail } from "@/lib/geo";
+import { setExportData } from "@/lib/export-store";
 
 const TRAIL_WIDTH = 3;
 
@@ -82,6 +83,7 @@ export default function StackScreen() {
 
   const [renderedTrails, setRenderedTrails] = useState<Trail[]>([]);
   const [loadingTrails, setLoadingTrails] = useState(false);
+  const [mapRegion, setMapRegion] = useState<Region | null>(null);
 
   useEffect(() => {
     if (!selectedCluster) {
@@ -127,6 +129,11 @@ export default function StackScreen() {
     });
   }, [router, startDate, endDate, filterLabels, areaLabel]);
 
+  const openExport = useCallback(() => {
+    setExportData(renderedTrails, areaLabel ?? "", mapRegion);
+    router.push("/export-modal");
+  }, [router, renderedTrails, areaLabel, mapRegion]);
+
   const totalInCluster = selectedCluster?.summaries.length ?? 0;
 
   if (!hasTrails) {
@@ -168,6 +175,7 @@ export default function StackScreen() {
         showsPointsOfInterest={false}
         showsBuildings={false}
         pitchEnabled={false}
+        onRegionChangeComplete={setMapRegion}
       >
         {renderedTrails.map((trail) => (
           <Polyline
@@ -206,19 +214,36 @@ export default function StackScreen() {
                 : `${renderedTrails.length}${totalInCluster > renderedTrails.length ? ` of ${totalInCluster}` : ""} trails`}
             </Text>
           </View>
-          <TouchableOpacity
-            style={[
-              styles.filterCircle,
-              {
-                backgroundColor: colors.accent,
-                borderWidth: 2,
-                borderColor: colors.activeSelectionBorder,
-              },
-            ]}
-            onPress={openFilters}
-          >
-            <Feather name="filter" size={24} color={colors.text} />
-          </TouchableOpacity>
+          <View style={styles.topActions}>
+            <TouchableOpacity
+              style={[
+                styles.actionCircle,
+                {
+                  backgroundColor: colors.surface,
+                  borderWidth: 2,
+                  borderColor: colors.activeSelectionBorder,
+                },
+              ]}
+              onPress={openFilters}
+            >
+              <Feather name="filter" size={20} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.actionCircle,
+                {
+                  backgroundColor: colors.accent,
+                  borderWidth: 2,
+                  borderColor: colors.activeSelectionBorder,
+                  opacity: renderedTrails.length === 0 ? 0.4 : 1,
+                },
+              ]}
+              onPress={openExport}
+              disabled={renderedTrails.length === 0}
+            >
+              <Feather name="download" size={20} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -288,7 +313,11 @@ const styles = StyleSheet.create({
   },
   topInfo: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 10,
+  },
+  topActions: {
+    flexDirection: "row",
+    gap: 8,
   },
   clusterLabel: {
     fontFamily: Fonts.semibold,
@@ -299,10 +328,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 1,
   },
-  filterCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+  actionCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 2,

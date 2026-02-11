@@ -181,7 +181,7 @@ export default function TrailsScreen() {
                 <View
                   style={[
                     styles.pill,
-                    { borderColor: colors.border, borderWidth: 1 },
+                    { borderColor: colors.text, borderWidth: 1 },
                   ]}
                 >
                   <Text style={[styles.pillText, { color: colors.text }]}>
@@ -244,7 +244,16 @@ export default function TrailsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Preview map — top half */}
-      <View style={[styles.mapContainer, { paddingTop: insets.top }]}>
+      <View
+        style={[
+          styles.mapContainer,
+          {
+            paddingTop: insets.top,
+            borderBottomWidth: 2,
+            borderColor: colors.border,
+          },
+        ]}
+      >
         <MapView
           ref={mapRef}
           style={StyleSheet.absoluteFillObject}
@@ -330,7 +339,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   mapContainer: {
-    height: "35%",
+    height: "40%",
   },
   listContainer: {
     flex: 1,

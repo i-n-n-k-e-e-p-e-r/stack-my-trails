@@ -25,7 +25,7 @@ export const Colors = {
     textSecondary: "#ADB5BD",
     background: "#212529",
     surface: "#2D3238",
-    accent: "#6C757D",
+    accent: "#6C6C6C",
     icon: "#ADB5BD",
     tabIconDefault: "#6C757D",
     tabIconSelected: "#FFFFFF",
