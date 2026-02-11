@@ -280,7 +280,7 @@ export default function ExportModal() {
           <Feather
             name="map"
             size={18}
-            color={showMap ? colors.buttonText : colors.text}
+            color={showMap ? colors.text : colors.textSecondary}
           />
         </TouchableOpacity>
 
@@ -300,7 +300,7 @@ export default function ExportModal() {
           <Feather
             name="type"
             size={18}
-            color={showLabel ? colors.buttonText : colors.text}
+            color={showLabel ? colors.text : colors.textSecondary}
           />
         </TouchableOpacity>
 
@@ -462,12 +462,7 @@ export default function ExportModal() {
       </View>
 
       {/* Fixed bottom buttons */}
-      <View
-        style={[
-          styles.bottomBar,
-          { paddingBottom: insets.bottom, borderTopColor: colors.borderLight },
-        ]}
-      >
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
         <View style={styles.buttonsRow}>
           <TouchableOpacity
             style={[
@@ -624,7 +619,6 @@ const styles = StyleSheet.create({
   bottomBar: {
     paddingHorizontal: 16,
     paddingTop: 10,
-    borderTopWidth: 1,
   },
   buttonsRow: {
     flexDirection: "row",
