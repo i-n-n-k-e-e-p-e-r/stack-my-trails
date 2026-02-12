@@ -289,6 +289,11 @@ export default function FilterModal() {
               setShowCustomEnd(false);
             }}
           >
+            <Text
+              style={[styles.dateChevron, { color: colors.textSecondary }]}
+            >
+              {showCustomStart ? "\u25B4" : "\u25BE"}
+            </Text>
             <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
               From
             </Text>
@@ -329,6 +334,11 @@ export default function FilterModal() {
               setShowCustomStart(false);
             }}
           >
+            <Text
+              style={[styles.dateChevron, { color: colors.textSecondary }]}
+            >
+              {showCustomEnd ? "\u25B4" : "\u25BE"}
+            </Text>
             <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
               To
             </Text>
@@ -681,6 +691,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     padding: 14,
+    gap: 6,
   },
   dateLabel: {
     fontFamily: Fonts.regular,
@@ -689,6 +700,10 @@ const styles = StyleSheet.create({
   dateValue: {
     fontFamily: Fonts.medium,
     fontSize: 15,
+    marginLeft: "auto",
+  },
+  dateChevron: {
+    fontSize: 12,
   },
   dateSeparator: {
     height: StyleSheet.hairlineWidth,
