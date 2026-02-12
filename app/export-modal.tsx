@@ -149,10 +149,21 @@ export default function ExportModal() {
   const [showBorder, setShowBorder] = useState(initial.showBorder);
   const [colorHue, setColorHue] = useState(initial.colorHue);
   const [labelText, setLabelText] = useState(() => {
-    if (initial.labelText) return initial.labelText;
+    const areaChanged = saved?.labelAreaLabel !== (areaLabel || "");
+    // Keep saved label if same area
+    if (saved?.labelText && !areaChanged) return saved.labelText;
+    // Auto-generate from current area + trail years
     const city = areaLabel || "MY CITY";
-    const year = new Date().getFullYear();
-    return `${city.toUpperCase()} \u2014 ${year}`;
+    const years = trails.map((t) => new Date(t.startDate).getFullYear());
+    const minYear = Math.min(...years);
+    const maxYear = Math.max(...years);
+    const yearStr =
+      years.length === 0
+        ? `${new Date().getFullYear()}`
+        : minYear === maxYear
+          ? `${minYear}`
+          : `${minYear}\u2013${maxYear}`;
+    return `${city.toUpperCase()} \u00B7 ${yearStr}`;
   });
   const [exporting, setExporting] = useState(false);
   const [labelTypeface, setLabelTypeface] = useState<SkTypeface | null>(null);
@@ -167,6 +178,7 @@ export default function ExportModal() {
       showBorder,
       colorHue,
       labelText,
+      labelAreaLabel: areaLabel || "",
     });
   }, [
     selectedTheme.id,
@@ -176,6 +188,7 @@ export default function ExportModal() {
     showBorder,
     colorHue,
     labelText,
+    areaLabel,
   ]);
 
   // Load Geist-Bold typeface for high-res label rendering

@@ -6,6 +6,8 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  PanResponder,
+  useWindowDimensions,
 } from "react-native";
 import MapView, { Polyline } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -69,6 +71,38 @@ export default function TrailsScreen() {
   const [selectedCoords, setSelectedCoords] = useState<Coordinate[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
   const mapReady = useRef(false);
+
+  const { height: windowHeight } = useWindowDimensions();
+  const MIN_MAP_FRACTION = 0.2;
+  const MAX_MAP_FRACTION = 0.7;
+  const [mapFraction, setMapFraction] = useState(0.4);
+  const mapFractionRef = useRef(0.4);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: (_e, gestureState) => {
+        const newFraction =
+          mapFractionRef.current + gestureState.dy / windowHeight;
+        const clamped = Math.min(
+          MAX_MAP_FRACTION,
+          Math.max(MIN_MAP_FRACTION, newFraction),
+        );
+        setMapFraction(clamped);
+      },
+      onPanResponderRelease: (_e, gestureState) => {
+        const newFraction =
+          mapFractionRef.current + gestureState.dy / windowHeight;
+        const clamped = Math.min(
+          MAX_MAP_FRACTION,
+          Math.max(MIN_MAP_FRACTION, newFraction),
+        );
+        mapFractionRef.current = clamped;
+        setMapFraction(clamped);
+      },
+    }),
+  ).current;
 
   useFocusEffect(
     useCallback(() => {
@@ -247,14 +281,14 @@ export default function TrailsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Preview map — top half */}
+      {/* Preview map */}
       <View
         style={[
           styles.mapContainer,
           {
+            height: `${mapFraction * 100}%`,
             paddingTop: insets.top,
-            borderBottomWidth: 2,
-            borderColor: colors.border,
+            borderBottomWidth: 0,
           },
         ]}
       >
@@ -285,7 +319,17 @@ export default function TrailsScreen() {
         </MapView>
       </View>
 
-      {/* Trail list — bottom half */}
+      {/* Drag handle */}
+      <View
+        {...panResponder.panHandlers}
+        style={[styles.divider, { borderColor: colors.border }]}
+      >
+        <View
+          style={[styles.dividerHandle, { backgroundColor: colors.textSecondary }]}
+        />
+      </View>
+
+      {/* Trail list */}
       <View style={styles.listContainer}>
         <View style={styles.listHeader}>
           <Text style={[styles.listLabel, { color: colors.textSecondary }]}>
@@ -348,7 +392,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   mapContainer: {
-    height: "40%",
+    overflow: "hidden",
+  },
+  divider: {
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+  },
+  dividerHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.5,
   },
   listContainer: {
     flex: 1,

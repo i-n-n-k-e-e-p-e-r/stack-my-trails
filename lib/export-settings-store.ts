@@ -11,6 +11,8 @@ export interface ExportSettings {
   showBorder: boolean;
   colorHue: number;
   labelText: string | null;
+  /** The areaLabel that was active when labelText was last saved. */
+  labelAreaLabel: string | null;
 }
 
 // Per-theme default intensity values
@@ -47,5 +49,6 @@ export function defaultExportSettings(
     showBorder: false,
     colorHue: 0,
     labelText: null,
+    labelAreaLabel: null,
   };
 }
