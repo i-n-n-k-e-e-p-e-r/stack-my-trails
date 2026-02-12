@@ -293,6 +293,20 @@ export async function deleteAllTrails(db: SQLiteDatabase) {
   await db.execAsync('DELETE FROM cluster_labels');
 }
 
+/** Rename a location label across all trails that have it. */
+export async function renameTrailLabel(
+  db: SQLiteDatabase,
+  oldLabel: string,
+  newLabel: string,
+): Promise<number> {
+  const result = await db.runAsync(
+    'UPDATE trails SET location_label = ? WHERE location_label = ?',
+    newLabel,
+    oldLabel,
+  );
+  return result.changes;
+}
+
 // ---------- Stats ----------
 
 export async function getTrailCount(db: SQLiteDatabase): Promise<number> {

@@ -7,6 +7,7 @@ import {
   ScrollView,
   Platform,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -14,7 +15,7 @@ import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
-import { getAllTrailSummaries } from "@/lib/db";
+import { getAllTrailSummaries, renameTrailLabel } from "@/lib/db";
 import { getFilters, setFilters } from "@/lib/filter-store";
 import type { TrailSummary } from "@/lib/geo";
 
@@ -119,17 +120,22 @@ export default function FilterModal() {
   const [loadingAreas, setLoadingAreas] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
 
+  const reloadAreas = async () => {
+    const summaries = await getAllTrailSummaries(db);
+    const groups = buildAreaGroups(summaries);
+    setAreaGroups(groups);
+    setLoadingAreas(false);
+    return groups;
+  };
+
   useEffect(() => {
     let cancelled = false;
 
     async function loadAreas() {
-      const summaries = await getAllTrailSummaries(db);
+      const groups = await reloadAreas();
       if (cancelled) return;
-      setAreaGroups(buildAreaGroups(summaries));
-      setLoadingAreas(false);
 
       if (selectedLabels.length > 0) {
-        const groups = buildAreaGroups(summaries);
         for (let i = 0; i < groups.length; i++) {
           const hasMatch = groups[i].allLabels.some((l) =>
             selectedLabels.includes(l),
@@ -148,6 +154,29 @@ export default function FilterModal() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db]);
+
+  const handleRenameLabel = (labels: string[], currentDisplay: string) => {
+    Alert.prompt(
+      "Rename Area",
+      `Current: "${currentDisplay}"`,
+      async (newName) => {
+        if (!newName || newName.trim() === "" || newName.trim() === currentDisplay) return;
+        const trimmed = newName.trim();
+        for (const oldLabel of labels) {
+          await renameTrailLabel(db, oldLabel, trimmed);
+        }
+        // Update selected labels if they were affected
+        const affected = selectedLabels.some((l) => labels.includes(l));
+        if (affected) {
+          setSelectedLabels([trimmed]);
+          setSelectedDisplayLabel(trimmed);
+        }
+        await reloadAreas();
+      },
+      "plain-text",
+      currentDisplay,
+    );
+  };
 
   const getActivePreset = () => {
     const diffMs = endDate.getTime() - startDate.getTime();
@@ -379,6 +408,9 @@ export default function FilterModal() {
                           },
                         ]}
                         onPress={() => selectArea(sub.labels, sub.fullLabel)}
+                        onLongPress={() =>
+                          handleRenameLabel(sub.labels, sub.fullLabel)
+                        }
                       >
                         <View
                           style={[
@@ -503,6 +535,9 @@ export default function FilterModal() {
                               ]}
                               onPress={() =>
                                 selectArea(sub.labels, sub.fullLabel)
+                              }
+                              onLongPress={() =>
+                                handleRenameLabel(sub.labels, sub.fullLabel)
                               }
                             >
                               <View

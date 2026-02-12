@@ -318,7 +318,7 @@ export default function StackScreen() {
               onPress={openExport}
               disabled={renderedTrails.length === 0}
             >
-              <Feather name="download" size={20} color={colors.text} />
+              <Feather name="image" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
         </View>
