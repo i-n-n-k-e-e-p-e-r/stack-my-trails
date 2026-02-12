@@ -1,13 +1,13 @@
 # Stack My Trails
 
-React Native (Expo 54) app that reads workout routes from Apple Health and stacks them on a single Apple Maps view, creating a heatmap-like visualization of your training routes.
+React Native (Expo 54) app that reads workout routes from Health and stacks them on a single Maps view, creating a heatmap-like visualization of your training routes.
 
 ## Tech Stack
 
 - **Runtime:** Expo 54, React Native 0.81, TypeScript
 - **Navigation:** Expo Router (file-based), 3 tabs + modals (filter, export)
 - **HealthKit:** `@kingstinct/react-native-healthkit` v13 (Nitro Modules / JSI)
-- **Maps:** `react-native-maps` with Apple Maps (no API key needed)
+- **Maps:** `react-native-maps` with Maps (no API key needed)
 - **Storage:** `expo-sqlite` for caching imported trail data
 - **Geocoding:** `expo-location` for reverse geocoding (shared `lib/geocode.ts`)
 - **Date Picker:** `@react-native-community/datetimepicker`
@@ -162,7 +162,7 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - Maps use `userInterfaceStyle={colorScheme}` for dark/light map styling
 - Trail colors: light = dark ink (`#212529` based), dark = accent yellow (`#FCC803` based)
 
-### Apple Maps
+### Maps
 - No config plugin for react-native-maps (don't add to plugins array!)
 - `mapType="mutedStandard"` for subtle background
 - `userInterfaceStyle={colorScheme}` for dark/light map
@@ -205,7 +205,7 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - **GPS spoofing in Israel** — government GPS jamming during war creates points in Amman/Beirut; speed-based filter with timestamps is most effective approach
 - **ThemeProvider must handle missing settings table** — wrap getSetting/setSetting in .catch() since it may run before migration
 - **Duplicate React keys** — area groups can have same label; use array index, not label, for keys and expand tracking
-- **Map overlay approaches that DON'T work on Apple Maps:**
+- **Map overlay approaches that DON'T work on Maps:**
   - `Polygon` inside MapView (world-spanning coordinates don't render)
   - `LocalTile` with semi-transparent PNG (alpha not preserved during tile scaling, covers entire map opaque)
   - `View` overlay with `pointerEvents="none"` (dims both map AND polylines equally — polylines are native MapView children)
@@ -288,7 +288,7 @@ Stack Screen → [setExportData] → export-store → [getExportData] → Export
 - Cleanup: `clearExportData()` on unmount to free trail data from memory
 
 ### Coordinate Transform (`lib/poster-renderer.ts:buildTransform()`)
-- Maps GPS lat/lng to Skia canvas pixel space using Web Mercator projection (matching Apple Maps)
+- Maps GPS lat/lng to Skia canvas pixel space using Web Mercator projection (matching Maps)
 - Uses visible map region as bounds (matches user's framing on Stack tab)
 - `cropRegionToAspect()` crops region to 3:4 poster aspect ratio using Mercator projection
 - Falls back to trail bounding box if no region provided

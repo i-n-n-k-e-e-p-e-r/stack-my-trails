@@ -4,6 +4,7 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useSyncExternalStore,
 } from "react";
 import {
   StyleSheet,
@@ -11,12 +12,12 @@ import {
   Text,
   TouchableOpacity,
   ActivityIndicator,
-  useWindowDimensions,
+  Animated,
 } from "react-native";
 import MapView, { Polyline, type Region } from "react-native-maps";
 import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
@@ -24,6 +25,11 @@ import { getTrailCount } from "@/lib/db";
 import { useTrails } from "@/hooks/use-trails";
 import { smoothCoordinates, type Trail } from "@/lib/geo";
 import { setExportData } from "@/lib/export-store";
+import {
+  getFilters,
+  subscribeFilters,
+  hasActiveFilters,
+} from "@/lib/filter-store";
 
 const TRAIL_WIDTH = 3;
 const EXPORT_ASPECT_RATIO = 3 / 4; // 3:4 poster aspect
@@ -32,7 +38,6 @@ export default function StackScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
-  const dimensions = useWindowDimensions();
   const mapRef = useRef<MapView>(null);
   const router = useRouter();
   const db = useSQLiteContext();
@@ -44,39 +49,54 @@ export default function StackScreen() {
     }, [db]),
   );
 
-  const params = useLocalSearchParams<{
-    startDate?: string;
-    endDate?: string;
-    areaLabels?: string;
-    areaLabel?: string;
-  }>();
+  const filters = useSyncExternalStore(subscribeFilters, getFilters);
+  const { startDate, endDate, areaLabels: filterLabels, areaLabel } = filters;
+  const filtersActive = hasActiveFilters();
 
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - 6);
-    return d;
-  });
-  const [endDate, setEndDate] = useState(() => new Date());
-  const [filterLabels, setFilterLabels] = useState<string[] | null>(null);
-  const [areaLabel, setAreaLabel] = useState<string | null>(null);
-
+  // "Ring the bell" nudge animation for filter button when no area selected
+  const shakeAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (params.startDate) setStartDate(new Date(params.startDate));
-    if (params.endDate) setEndDate(new Date(params.endDate));
-    if (params.areaLabels) {
-      try {
-        setFilterLabels(JSON.parse(params.areaLabels));
-      } catch {}
+    if (!filtersActive && hasTrails) {
+      const ring = Animated.sequence([
+        Animated.timing(shakeAnim, {
+          toValue: 12,
+          duration: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnim, {
+          toValue: -10,
+          duration: 80,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnim, {
+          toValue: 8,
+          duration: 70,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnim, {
+          toValue: -4,
+          duration: 60,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shakeAnim, {
+          toValue: 0,
+          duration: 50,
+          useNativeDriver: true,
+        }),
+        Animated.delay(3000),
+      ]);
+      const loop = Animated.loop(ring);
+      loop.start();
+      return () => loop.stop();
     } else {
-      setFilterLabels(null);
+      shakeAnim.setValue(0);
     }
-    if (params.areaLabel) setAreaLabel(params.areaLabel);
-  }, [params.startDate, params.endDate, params.areaLabels, params.areaLabel]);
+  }, [filtersActive, hasTrails, shakeAnim]);
 
   const { clusters, loading, loadClusterTrails } = useTrails({
     startDate,
     endDate,
-    labels: filterLabels,
+    labels: filterLabels ?? [],
   });
 
   const selectedCluster = useMemo(
@@ -87,6 +107,7 @@ export default function StackScreen() {
   const [renderedTrails, setRenderedTrails] = useState<Trail[]>([]);
   const [loadingTrails, setLoadingTrails] = useState(false);
   const [mapRegion, setMapRegion] = useState<Region | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     if (!selectedCluster) {
@@ -121,16 +142,8 @@ export default function StackScreen() {
   }, [selectedCluster, loadClusterTrails]);
 
   const openFilters = useCallback(() => {
-    router.push({
-      pathname: "/filter-modal",
-      params: {
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        areaLabels: filterLabels ? JSON.stringify(filterLabels) : "",
-        areaLabel: areaLabel ?? "",
-      },
-    });
-  }, [router, startDate, endDate, filterLabels, areaLabel]);
+    router.push("/filter-modal");
+  }, [router]);
 
   const openExport = useCallback(async () => {
     let heading = 0;
@@ -146,32 +159,23 @@ export default function StackScreen() {
 
   const totalInCluster = selectedCluster?.summaries.length ?? 0;
 
-  // Calculate export frame dimensions (3:4 aspect ratio)
+  // Calculate export frame: largest 3:4 rectangle centered in the map container
   const exportFrame = useMemo(() => {
-    const screenWidth = dimensions.width;
-    const screenHeight = dimensions.height;
-    const screenAspect = screenWidth / screenHeight;
+    const cw = containerSize.width;
+    const ch = containerSize.height;
+    if (cw === 0 || ch === 0) return { width: 0, height: 0, top: 0, left: 0 };
 
-    if (screenAspect < EXPORT_ASPECT_RATIO) {
-      // Screen is more portrait than poster — crop height
-      const frameHeight = screenWidth / EXPORT_ASPECT_RATIO;
-      return {
-        width: screenWidth,
-        height: frameHeight,
-        top: (screenHeight - frameHeight) / 2,
-        left: 0,
-      };
-    } else {
-      // Screen is wider than poster — crop width
-      const frameWidth = screenHeight * EXPORT_ASPECT_RATIO;
-      return {
-        width: frameWidth,
-        height: screenHeight,
-        top: 0,
-        left: (screenWidth - frameWidth) / 2,
-      };
+    const containerAspect = cw / ch;
+
+    if (containerAspect < EXPORT_ASPECT_RATIO) {
+      // Container is narrower than 3:4 — full width, crop height
+      const fh = cw / EXPORT_ASPECT_RATIO;
+      return { width: cw, height: fh, top: (ch - fh) / 2, left: 0 };
     }
-  }, [dimensions]);
+    // Container is wider than 3:4 — full height, crop width
+    const fw = ch * EXPORT_ASPECT_RATIO;
+    return { width: fw, height: ch, top: 0, left: (cw - fw) / 2 };
+  }, [containerSize]);
 
   if (!hasTrails) {
     return (
@@ -193,7 +197,7 @@ export default function StackScreen() {
           onPress={() => router.push("/(tabs)/settings")}
         >
           <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
-            Go to Settings
+            Import workouts
           </Text>
         </TouchableOpacity>
       </View>
@@ -201,7 +205,13 @@ export default function StackScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setContainerSize({ width, height });
+      }}
+    >
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
@@ -261,25 +271,40 @@ export default function StackScreen() {
               {areaLabel ?? "Select an area"}
             </Text>
             <Text style={[styles.trailCount, { color: colors.textSecondary }]}>
-              {loading || loadingTrails
-                ? "Loading..."
-                : `${renderedTrails.length}${totalInCluster > renderedTrails.length ? ` of ${totalInCluster}` : ""} trails`}
+              {!filtersActive
+                ? "Tap filter to choose"
+                : loading || loadingTrails
+                  ? "Loading..."
+                  : `${renderedTrails.length}${totalInCluster > renderedTrails.length ? ` of ${totalInCluster}` : ""} trails`}
             </Text>
           </View>
           <View style={styles.topActions}>
-            <TouchableOpacity
-              style={[
-                styles.actionCircle,
-                {
-                  backgroundColor: colors.surface,
-                  borderWidth: 2,
-                  borderColor: colors.activeSelectionBorder,
-                },
-              ]}
-              onPress={openFilters}
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: shakeAnim.interpolate({
+                      inputRange: [-15, 15],
+                      outputRange: ["-15deg", "15deg"],
+                    }),
+                  },
+                ],
+              }}
             >
-              <Feather name="filter" size={20} color={colors.text} />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.actionCircle,
+                  {
+                    backgroundColor: colors.surface,
+                    borderWidth: 2,
+                    borderColor: colors.activeSelectionBorder,
+                  },
+                ]}
+                onPress={openFilters}
+              >
+                <Feather name="filter" size={20} color={colors.text} />
+              </TouchableOpacity>
+            </Animated.View>
             <TouchableOpacity
               style={[
                 styles.actionCircle,
@@ -298,6 +323,21 @@ export default function StackScreen() {
           </View>
         </View>
       </View>
+
+      {!filtersActive && !loadingTrails && (
+        <View
+          style={[
+            styles.loadingOverlay,
+            { backgroundColor: `${colors.background}80` },
+          ]}
+          pointerEvents="none"
+        >
+          <Feather name="map-pin" size={36} color={colors.textSecondary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Select an area to see trails
+          </Text>
+        </View>
+      )}
 
       {loadingTrails && (
         <View
@@ -341,6 +381,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 999,
+    borderWidth: 2,
   },
   emptyButtonText: {
     fontFamily: Fonts.semibold,

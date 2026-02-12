@@ -529,12 +529,12 @@ export default function TrailsScreen() {
           No trails yet
         </Text>
         <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-          Import your workouts from Apple Health to see them here.
+          Import your workouts to see them here.
         </Text>
         <TouchableOpacity
           style={[styles.emptyButton, { backgroundColor: colors.teal }]}
           onPress={() => router.push("/(tabs)/settings")}>
-          <Text style={styles.emptyButtonText}>Import from Health</Text>
+          <Text style={styles.emptyButtonText}>Import workouts</Text>
         </TouchableOpacity>
       </View>
     );
@@ -875,7 +875,7 @@ export default function StackScreen() {
         <TouchableOpacity
           style={[styles.emptyButton, { backgroundColor: colors.teal }]}
           onPress={() => router.push("/(tabs)/settings")}>
-          <Text style={styles.emptyButtonText}>Go to Settings</Text>
+          <Text style={styles.emptyButtonText}>Import workouts</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1142,7 +1142,7 @@ export default function SettingsScreen() {
   const handleDeleteAll = useCallback(() => {
     Alert.alert(
       'Delete All Data',
-      'This will remove all imported trails and cached labels. You will need to re-import from Health.',
+      'This will remove all imported trails and cached labels. You will need to re-import.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -1263,7 +1263,7 @@ export default function SettingsScreen() {
               ? 'Importing...'
               : trailCount > 0
                 ? 'Re-import All'
-                : 'Import from Health'}
+                : 'Import workouts'}
           </Text>
         </TouchableOpacity>
 
@@ -1287,7 +1287,7 @@ export default function SettingsScreen() {
 
       <Text style={[styles.hint, { color: colors.textSecondary }]}>
         Imports running, walking, cycling, hiking, and open water swimming
-        workouts with GPS routes from Apple Health.
+        workouts with GPS routes from your device.
       </Text>
 
       {/* Data section */}

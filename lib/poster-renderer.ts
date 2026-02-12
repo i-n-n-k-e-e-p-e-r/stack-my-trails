@@ -172,7 +172,7 @@ interface Transform {
 
 /**
  * Build a coordinate transformer from GPS space to canvas pixel space.
- * Uses Web Mercator projection (matching Apple Maps) for Y-axis.
+ * Uses Web Mercator projection (matching Maps) for Y-axis.
  */
 export function buildTransform(
   trails: Trail[],
@@ -293,7 +293,14 @@ export function drawPoster(
   paths: SkPath[],
   options: PosterOptions,
 ) {
-  const { theme, strokeWidth, opacity, showLabel, labelText, heading = 0 } = options;
+  const {
+    theme,
+    strokeWidth,
+    opacity,
+    showLabel,
+    labelText,
+    heading = 0,
+  } = options;
   const hasLabel = showLabel && !!labelText;
 
   // Smooth sharp GPS corners with circular arcs

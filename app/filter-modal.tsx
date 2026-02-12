@@ -10,11 +10,12 @@ import {
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { getAllTrailSummaries } from "@/lib/db";
+import { getFilters, setFilters } from "@/lib/filter-store";
 import type { TrailSummary } from "@/lib/geo";
 
 const PRESETS = [
@@ -102,31 +103,15 @@ export default function FilterModal() {
   const colors = Colors[colorScheme];
   const router = useRouter();
   const db = useSQLiteContext();
-  const params = useLocalSearchParams<{
-    startDate?: string;
-    endDate?: string;
-    areaLabels?: string;
-    areaLabel?: string;
-  }>();
+  const currentFilters = getFilters();
 
-  const [startDate, setStartDate] = useState(
-    params.startDate
-      ? new Date(params.startDate)
-      : new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000),
+  const [startDate, setStartDate] = useState(currentFilters.startDate);
+  const [endDate, setEndDate] = useState(currentFilters.endDate);
+  const [selectedLabels, setSelectedLabels] = useState<string[]>(
+    currentFilters.areaLabels ?? [],
   );
-  const [endDate, setEndDate] = useState(
-    params.endDate ? new Date(params.endDate) : new Date(),
-  );
-  const [selectedLabels, setSelectedLabels] = useState<string[]>(() => {
-    if (params.areaLabels) {
-      try {
-        return JSON.parse(params.areaLabels);
-      } catch {}
-    }
-    return [];
-  });
   const [selectedDisplayLabel, setSelectedDisplayLabel] = useState<string>(
-    params.areaLabel ?? "",
+    currentFilters.areaLabel ?? "",
   );
   const [showCustomStart, setShowCustomStart] = useState(false);
   const [showCustomEnd, setShowCustomEnd] = useState(false);
@@ -185,15 +170,13 @@ export default function FilterModal() {
   };
 
   const handleApply = () => {
+    setFilters({
+      startDate,
+      endDate,
+      areaLabels: selectedLabels.length > 0 ? selectedLabels : null,
+      areaLabel: selectedDisplayLabel || null,
+    });
     router.back();
-    setTimeout(() => {
-      router.setParams({
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-        areaLabels: JSON.stringify(selectedLabels),
-        areaLabel: selectedDisplayLabel,
-      });
-    }, 100);
   };
 
   const toggleGroup = (idx: number) => {

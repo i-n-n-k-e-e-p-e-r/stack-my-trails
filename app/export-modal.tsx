@@ -44,12 +44,17 @@ import {
   renderHighResPoster,
   type PosterTheme,
 } from "@/lib/poster-renderer";
+import {
+  getExportSettings,
+  setExportSettings,
+  defaultExportSettings,
+  THEME_DEFAULT_INTENSITY,
+} from "@/lib/export-settings-store";
 
 const INTENSITY_MIN_STROKE = 1.0;
 const INTENSITY_MAX_STROKE = 4.0;
 const INTENSITY_MIN_OPACITY = 0.15;
 const INTENSITY_MAX_OPACITY = 0.5;
-const INTENSITY_DEFAULT = 0.3;
 
 const CANVAS_ASPECT = 3 / 4;
 
@@ -122,21 +127,57 @@ export default function ExportModal() {
     [],
   );
 
-  const [selectedTheme, setSelectedTheme] = useState<PosterTheme>(
-    POSTER_THEMES[2],
+  // Theme-appropriate defaults: noir for dark, minimalist for light
+  const schemeDefaultThemeId =
+    colorScheme === "dark" ? "noir" : "minimalist";
+
+  // Restore persisted settings or use scheme-appropriate defaults
+  const saved = useMemo(() => getExportSettings(), []);
+  const defaults = useMemo(
+    () => defaultExportSettings(schemeDefaultThemeId),
+    [schemeDefaultThemeId],
   );
-  const [intensity, setIntensity] = useState(INTENSITY_DEFAULT);
-  const [showLabel, setShowLabel] = useState(true);
-  const [showMap, setShowMap] = useState(true);
-  const [showBorder, setShowBorder] = useState(false);
-  const [colorHue, setColorHue] = useState(0);
+  const initial = saved ?? defaults;
+
+  const [selectedTheme, setSelectedTheme] = useState<PosterTheme>(
+    () =>
+      POSTER_THEMES.find((t) => t.id === initial.themeId) ??
+      POSTER_THEMES.find((t) => t.id === schemeDefaultThemeId)!,
+  );
+  const [intensity, setIntensity] = useState(initial.intensity);
+  const [showLabel, setShowLabel] = useState(initial.showLabel);
+  const [showMap, setShowMap] = useState(initial.showMap);
+  const [showBorder, setShowBorder] = useState(initial.showBorder);
+  const [colorHue, setColorHue] = useState(initial.colorHue);
   const [labelText, setLabelText] = useState(() => {
+    if (initial.labelText) return initial.labelText;
     const city = areaLabel || "MY CITY";
     const year = new Date().getFullYear();
     return `${city.toUpperCase()} \u2014 ${year}`;
   });
   const [exporting, setExporting] = useState(false);
   const [labelTypeface, setLabelTypeface] = useState<SkTypeface | null>(null);
+
+  // Persist settings on every change
+  useEffect(() => {
+    setExportSettings({
+      themeId: selectedTheme.id,
+      intensity,
+      showLabel,
+      showMap,
+      showBorder,
+      colorHue,
+      labelText,
+    });
+  }, [
+    selectedTheme.id,
+    intensity,
+    showLabel,
+    showMap,
+    showBorder,
+    colorHue,
+    labelText,
+  ]);
 
   // Load Geist-Bold typeface for high-res label rendering
   useEffect(() => {
@@ -560,7 +601,12 @@ export default function ExportModal() {
                   borderWidth: active ? 3 : 1.5,
                 },
               ]}
-              onPress={() => setSelectedTheme(theme)}
+              onPress={() => {
+                setSelectedTheme(theme);
+                setIntensity(
+                  THEME_DEFAULT_INTENSITY[theme.id] ?? 0.3,
+                );
+              }}
             >
               {active && (
                 <Feather name="star" size={16} color={theme.buttonLabelColor} />

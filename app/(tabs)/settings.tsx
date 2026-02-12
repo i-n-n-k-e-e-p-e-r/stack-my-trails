@@ -19,6 +19,7 @@ import {
   deleteAllTrails,
 } from "@/lib/db";
 import { useThemePreference, type ThemePreference } from "@/contexts/theme";
+import { resetFilters } from "@/lib/filter-store";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "auto", label: "Auto" },
@@ -65,6 +66,15 @@ export default function SettingsScreen() {
     refreshStats();
   }, [refreshStats, importing, deleting]);
 
+  // Reset filters after import completes or data is deleted
+  const prevImporting = React.useRef(importing);
+  useEffect(() => {
+    if (prevImporting.current && !importing) {
+      resetFilters();
+    }
+    prevImporting.current = importing;
+  }, [importing]);
+
   const handleFetchNew = useCallback(async () => {
     const latest = await getLatestTrailDate(db);
     startImport(latest);
@@ -73,7 +83,7 @@ export default function SettingsScreen() {
   const handleDeleteAll = useCallback(() => {
     Alert.alert(
       "Delete All Data",
-      "This will remove all imported trails and cached labels. You will need to re-import from Health.",
+      "This will remove all imported trails and cached labels. You will need to re-import.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -82,6 +92,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             setDeleting(true);
             await deleteAllTrails(db);
+            resetFilters();
             setDeleting(false);
           },
         },
@@ -244,7 +255,7 @@ export default function SettingsScreen() {
                 ? "Importing..."
                 : trailCount > 0
                   ? "Re-import All"
-                  : "Import from Health"}
+                  : "Import workouts"}
             </Text>
           </TouchableOpacity>
 
@@ -269,7 +280,7 @@ export default function SettingsScreen() {
 
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
           Imports running, walking, cycling, hiking, and open water swimming
-          workouts with GPS routes from Apple Health.
+          workouts with GPS routes from your device.
         </Text>
 
         {/* Data section */}

@@ -56,8 +56,10 @@ export function useTrails({
       setError(null);
 
       try {
-        const summaries = labels && labels.length > 0
-          ? await getTrailSummariesByLabels(db, startDate, endDate, labels)
+        const summaries = labels
+          ? labels.length > 0
+            ? await getTrailSummariesByLabels(db, startDate, endDate, labels)
+            : []  // Empty labels array = no trails (no area selected)
           : await getTrailSummaries(db, startDate, endDate);
         if (cancelled) return;
 

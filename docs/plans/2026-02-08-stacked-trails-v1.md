@@ -2,11 +2,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build the first working version of the app — read workout routes from Apple Health and display them stacked on an Apple Maps view, with area selection and date filtering.
+**Goal:** Build the first working version of the app — read workout routes from Health and display them stacked on an Maps view, with area selection and date filtering.
 
-**Architecture:** Two-tab Expo Router app. "Map" tab shows stacked workout polylines on Apple Maps. "Settings" tab (future, not in v1) left as placeholder. Data flows: HealthKit -> query workouts -> fetch routes -> cluster by geography -> user picks area -> render polylines. All state managed with React hooks (no external state library needed yet).
+**Architecture:** Two-tab Expo Router app. "Map" tab shows stacked workout polylines on Maps. "Settings" tab (future, not in v1) left as placeholder. Data flows: HealthKit -> query workouts -> fetch routes -> cluster by geography -> user picks area -> render polylines. All state managed with React hooks (no external state library needed yet).
 
-**Tech Stack:** Expo 54, React Native 0.81, `@kingstinct/react-native-healthkit` v13, `react-native-maps` (Apple Maps), TypeScript.
+**Tech Stack:** Expo 54, React Native 0.81, `@kingstinct/react-native-healthkit` v13, `react-native-maps` ( Maps), TypeScript.
 
 ---
 
@@ -891,4 +891,4 @@ This will install the new CocoaPods (HealthKit, Maps) and deploy to the connecte
 | 4 | Map screen + UI components | `app/(tabs)/index.tsx`, `components/area-picker.tsx`, `components/date-range-picker.tsx` |
 | 5 | Rebuild + test on device | Native rebuild + manual QA |
 
-After these 5 tasks we'll have a working app that reads workout routes from Apple Health, clusters them by area, and stacks them on Apple Maps. From here we can iterate on polish (colors, trail type filtering, animation, etc.).
+After these 5 tasks we'll have a working app that reads workout routes from Health, clusters them by area, and stacks them on Maps. From here we can iterate on polish (colors, trail type filtering, animation, etc.).

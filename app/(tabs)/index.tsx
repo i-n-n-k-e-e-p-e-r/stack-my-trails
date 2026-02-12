@@ -68,6 +68,7 @@ export default function TrailsScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCoords, setSelectedCoords] = useState<Coordinate[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
+  const mapReady = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -91,16 +92,19 @@ export default function TrailsScreen() {
     getTrailCoordinates(db, selectedId).then(setSelectedCoords);
   }, [db, selectedId]);
 
+  const fitMap = useCallback(() => {
+    if (!mapReady.current || selectedCoords.length === 0) return;
+    mapRef.current?.fitToCoordinates(selectedCoords, {
+      edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
+      animated: true,
+    });
+  }, [selectedCoords]);
+
   useEffect(() => {
     if (selectedCoords.length === 0) return;
-    const timer = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(selectedCoords, {
-        edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
-        animated: true,
-      });
-    }, 200);
+    const timer = setTimeout(fitMap, 200);
     return () => clearTimeout(timer);
-  }, [selectedCoords]);
+  }, [selectedCoords, fitMap]);
 
   useEffect(() => {
     if (trails.length === 0) return;
@@ -227,14 +231,14 @@ export default function TrailsScreen() {
           No trails yet
         </Text>
         <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-          Import your workouts from Apple Health to see them here.
+          Import your workouts to see them here.
         </Text>
         <TouchableOpacity
           style={[styles.emptyButton, { backgroundColor: colors.accent }]}
           onPress={() => router.push("/(tabs)/settings")}
         >
           <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
-            Import from Health
+            Import workouts
           </Text>
         </TouchableOpacity>
       </View>
@@ -264,6 +268,10 @@ export default function TrailsScreen() {
           showsBuildings={false}
           pitchEnabled={false}
           rotateEnabled={false}
+          onMapReady={() => {
+            mapReady.current = true;
+            fitMap();
+          }}
         >
           {selectedCoords.length > 0 && (
             <Polyline
@@ -333,6 +341,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 14,
     borderRadius: 999,
+    borderWidth: 2,
   },
   emptyButtonText: {
     fontFamily: Fonts.semibold,

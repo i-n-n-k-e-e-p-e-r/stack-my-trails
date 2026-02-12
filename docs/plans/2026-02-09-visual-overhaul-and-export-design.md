@@ -120,7 +120,7 @@ Place in `assets/fonts/`. Load in root `_layout.tsx` with `useFonts()`, gate ren
 **Empty state:**
 - Centered trail icon (from icon set) at 20% opacity, large watermark
 - "No trails yet" — Geist semibold
-- "Import from Health" button — solid `teal`, white text, `borderRadius: 16`
+- "Import workouts" button — solid `teal`, white text, `borderRadius: 16`
 
 ### 1.6 Stack Screen (Tab 2)
 
@@ -155,7 +155,7 @@ Place in `assets/fonts/`. Load in root `_layout.tsx` with `useFonts()`, gate ren
 - Rows: "Total trails" (count right-aligned, Geist semibold), "Last import" (relative date, `textSecondary`)
 - Row dividers: 1px `border`, inset 16px
 - Buttons below card:
-  - "Import from Health" — solid `teal` bg, white text, `borderRadius: 16`, full width
+  - "Import workouts" — solid `teal` bg, white text, `borderRadius: 16`, full width
   - "Fetch New Routes" — outlined: `teal` border, `teal` text, transparent bg
 - Progress bar: 4px height, `borderRadius: 2`, teal fill on `border` track
 - Progress text: "12 / 47 workouts" below bar

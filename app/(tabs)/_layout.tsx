@@ -10,9 +10,9 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 
 const TAB_ICONS: Record<string, React.ComponentProps<typeof Feather>["name"]> =
   {
-    index: "navigation",
+    index: "map-pin",
     stack: "layers",
-    settings: "sliders",
+    settings: "settings",
   };
 
 function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
@@ -79,9 +79,10 @@ export default function TabLayout() {
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{ headerShown: false }}
+      initialRouteName="stack"
     >
-      <Tabs.Screen name="index" options={{ title: "Trails" }} />
       <Tabs.Screen name="stack" options={{ title: "Stack" }} />
+      <Tabs.Screen name="index" options={{ title: "Trails" }} />
       <Tabs.Screen name="settings" options={{ title: "Settings" }} />
     </Tabs>
   );
