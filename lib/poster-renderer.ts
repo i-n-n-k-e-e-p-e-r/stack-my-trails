@@ -173,8 +173,6 @@ interface Transform {
 /**
  * Build a coordinate transformer from GPS space to canvas pixel space.
  * Uses Web Mercator projection (matching Apple Maps) for Y-axis.
- * When a visibleRegion is provided with no padding, uses separate X/Y scales
- * to fill the canvas exactly (matching the MapView's rendering).
  */
 export function buildTransform(
   trails: Trail[],
@@ -285,6 +283,7 @@ export interface PosterOptions {
   showLabel: boolean;
   showBorder: boolean;
   labelText: string;
+  heading?: number;
 }
 
 export function drawPoster(
@@ -294,11 +293,17 @@ export function drawPoster(
   paths: SkPath[],
   options: PosterOptions,
 ) {
-  const { theme, strokeWidth, opacity, showLabel, labelText } = options;
+  const { theme, strokeWidth, opacity, showLabel, labelText, heading = 0 } = options;
   const hasLabel = showLabel && !!labelText;
 
   // Smooth sharp GPS corners with circular arcs
   const cornerEffect = Skia.PathEffect.MakeCorner(strokeWidth * 1.5);
+
+  // Rotate canvas for trail drawing to match MapView heading
+  if (heading !== 0) {
+    canvas.save();
+    canvas.rotate(-heading, width / 2, height / 2);
+  }
 
   // 1. Glow pass (Noir only)
   if (theme.glow && theme.glowSigma > 0) {
@@ -351,6 +356,11 @@ export function drawPoster(
 
   for (const path of paths) {
     canvas.drawPath(path, corePaint);
+  }
+
+  // Restore canvas rotation so border/label draw north-up
+  if (heading !== 0) {
+    canvas.restore();
   }
 
   // 3. Decorative border with solid margin fill (drawn before label so label sits on top)

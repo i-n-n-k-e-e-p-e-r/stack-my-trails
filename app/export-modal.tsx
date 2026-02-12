@@ -117,7 +117,7 @@ export default function ExportModal() {
   const viewShotRef = useRef<ViewShot>(null);
   const posterMapRef = useRef<MapView>(null);
 
-  const { trails, areaLabel, visibleRegion } = useMemo(
+  const { trails, areaLabel, visibleRegion, heading } = useMemo(
     () => getExportData(),
     [],
   );
@@ -236,6 +236,14 @@ export default function ExportModal() {
 
   useEffect(() => clearExportData, []);
 
+  // Apply heading to poster MapView once the map has settled on the correct region
+  const handleMapReady = useCallback(() => {
+    if (!posterMapRef.current || heading === 0) return;
+    posterMapRef.current.getCamera().then((cam) => {
+      posterMapRef.current?.setCamera({ ...cam, heading });
+    }).catch(() => {});
+  }, [heading]);
+
   const transformRegion = useMemo((): Region | null => {
     if (posterBounds) {
       return {
@@ -272,6 +280,7 @@ export default function ExportModal() {
     if (paths.length === 0 || canvasWidth === 0) return null;
     const w = canvasWidth;
     const h = canvasHeight;
+    const hdg = heading;
     return createPicture(
       (canvas) => {
         drawPoster(canvas, w, h, paths, {
@@ -281,6 +290,7 @@ export default function ExportModal() {
           showLabel,
           showBorder,
           labelText,
+          heading: hdg,
         });
       },
       { width: w, height: h },
@@ -295,6 +305,7 @@ export default function ExportModal() {
     showLabel,
     showBorder,
     labelText,
+    heading,
   ]);
 
   const captureHighRes = useCallback(async (): Promise<string | null> => {
@@ -327,6 +338,7 @@ export default function ExportModal() {
         showLabel,
         showBorder,
         labelText,
+        heading,
       },
       canvasWidth,
       showMap,
@@ -351,6 +363,7 @@ export default function ExportModal() {
     showBorder,
     labelText,
     labelTypeface,
+    heading,
   ]);
 
   const handleSave = useCallback(async () => {
@@ -460,6 +473,7 @@ export default function ExportModal() {
                   showsUserLocation={false}
                   showsTraffic={false}
                   showsIndoors={false}
+                  onMapReady={handleMapReady}
                   onRegionChangeComplete={handleMapRegionChange}
                 />
                 {adjustedTheme.tintOpacity > 0 && (

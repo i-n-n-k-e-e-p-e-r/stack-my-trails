@@ -132,8 +132,15 @@ export default function StackScreen() {
     });
   }, [router, startDate, endDate, filterLabels, areaLabel]);
 
-  const openExport = useCallback(() => {
-    setExportData(renderedTrails, areaLabel ?? "", mapRegion);
+  const openExport = useCallback(async () => {
+    let heading = 0;
+    if (mapRef.current) {
+      try {
+        const camera = await mapRef.current.getCamera();
+        heading = camera.heading || 0;
+      } catch {}
+    }
+    setExportData(renderedTrails, areaLabel ?? "", mapRegion, heading);
     router.push("/export-modal");
   }, [router, renderedTrails, areaLabel, mapRegion]);
 
