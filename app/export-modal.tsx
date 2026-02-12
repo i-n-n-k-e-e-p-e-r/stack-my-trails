@@ -128,8 +128,7 @@ export default function ExportModal() {
   );
 
   // Theme-appropriate defaults: noir for dark, minimalist for light
-  const schemeDefaultThemeId =
-    colorScheme === "dark" ? "noir" : "minimalist";
+  const schemeDefaultThemeId = colorScheme === "dark" ? "noir" : "minimalist";
 
   // Restore persisted settings or use scheme-appropriate defaults
   const saved = useMemo(() => getExportSettings(), []);
@@ -280,9 +279,12 @@ export default function ExportModal() {
   // Apply heading to poster MapView once the map has settled on the correct region
   const handleMapReady = useCallback(() => {
     if (!posterMapRef.current || heading === 0) return;
-    posterMapRef.current.getCamera().then((cam) => {
-      posterMapRef.current?.setCamera({ ...cam, heading });
-    }).catch(() => {});
+    posterMapRef.current
+      .getCamera()
+      .then((cam) => {
+        posterMapRef.current?.setCamera({ ...cam, heading });
+      })
+      .catch(() => {});
   }, [heading]);
 
   const transformRegion = useMemo((): Region | null => {
@@ -603,13 +605,15 @@ export default function ExportModal() {
               ]}
               onPress={() => {
                 setSelectedTheme(theme);
-                setIntensity(
-                  THEME_DEFAULT_INTENSITY[theme.id] ?? 0.3,
-                );
+                setIntensity(THEME_DEFAULT_INTENSITY[theme.id] ?? 0.3);
               }}
             >
               {active && (
-                <Feather name="star" size={16} color={theme.buttonLabelColor} />
+                <Feather
+                  name="image"
+                  size={16}
+                  color={theme.buttonLabelColor}
+                />
               )}
             </TouchableOpacity>
           );
@@ -635,7 +639,7 @@ export default function ExportModal() {
           <Feather
             name="type"
             size={16}
-            color={showLabel ? colors.buttonText : colors.textSecondary}
+            color={showLabel ? colors.text : colors.textSecondary}
           />
         </TouchableOpacity>
 
@@ -655,7 +659,7 @@ export default function ExportModal() {
           <Feather
             name="map"
             size={16}
-            color={showMap ? colors.buttonText : colors.textSecondary}
+            color={showMap ? colors.text : colors.textSecondary}
           />
         </TouchableOpacity>
 
@@ -675,7 +679,7 @@ export default function ExportModal() {
           <Feather
             name="square"
             size={16}
-            color={showBorder ? colors.buttonText : colors.textSecondary}
+            color={showBorder ? colors.text : colors.textSecondary}
           />
         </TouchableOpacity>
       </View>
