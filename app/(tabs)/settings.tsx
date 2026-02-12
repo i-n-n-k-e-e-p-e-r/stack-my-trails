@@ -9,6 +9,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSQLiteContext } from "expo-sqlite";
+import { Feather } from "@expo/vector-icons";
+import * as Sharing from "expo-sharing";
+import * as DocumentPicker from "expo-document-picker";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { useImportTrails } from "@/hooks/use-import-trails";
@@ -20,6 +23,7 @@ import {
 } from "@/lib/db";
 import { useThemePreference, type ThemePreference } from "@/contexts/theme";
 import { resetFilters } from "@/lib/filter-store";
+import { exportTrailData, importTrailData } from "@/lib/trail-data-io";
 import Constants from "expo-constants";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -57,6 +61,8 @@ export default function SettingsScreen() {
   const [trailCount, setTrailCount] = useState(0);
   const [lastImport, setLastImport] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [dataExporting, setDataExporting] = useState(false);
+  const [dataImporting, setDataImporting] = useState(false);
 
   const refreshStats = useCallback(() => {
     getTrailCount(db).then(setTrailCount);
@@ -101,6 +107,53 @@ export default function SettingsScreen() {
     );
   }, [db]);
 
+  const busy = importing || deleting || dataExporting || dataImporting;
+
+  const handleExportData = useCallback(async () => {
+    setDataExporting(true);
+    try {
+      const fileUri = await exportTrailData(db);
+      await Sharing.shareAsync(fileUri, { UTI: "public.json" });
+    } catch (e) {
+      Alert.alert(
+        "Export Failed",
+        e instanceof Error ? e.message : "Unknown error",
+      );
+    } finally {
+      setDataExporting(false);
+    }
+  }, [db]);
+
+  const handleImportData = useCallback(async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      setDataImporting(true);
+      const {
+        imported,
+        skipped,
+        total: fileTotal,
+      } = await importTrailData(db, result.assets[0].uri);
+      resetFilters();
+      refreshStats();
+      Alert.alert(
+        "Import Complete",
+        `${imported} trails imported${skipped > 0 ? `, ${skipped} already existed` : ""} (${fileTotal} total in file)`,
+      );
+    } catch (e) {
+      Alert.alert(
+        "Import Failed",
+        e instanceof Error ? e.message : "Unknown error",
+      );
+    } finally {
+      setDataImporting(false);
+    }
+  }, [db, refreshStats]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Fixed header */}
@@ -122,7 +175,7 @@ export default function SettingsScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{
-          paddingBottom: 24,
+          paddingBottom: 100,
         }}
       >
         {/* Appearance section */}
@@ -243,20 +296,20 @@ export default function SettingsScreen() {
               styles.primaryButton,
               {
                 backgroundColor: colors.accent,
-                opacity: importing ? 0.6 : 1,
+                opacity: busy ? 0.6 : 1,
                 borderWidth: 2,
                 borderColor: colors.activeSelectionBorder,
               },
             ]}
             onPress={() => startImport()}
-            disabled={importing}
+            disabled={busy}
           >
             <Text style={[styles.primaryButtonText, { color: colors.text }]}>
               {importing
                 ? "Importing..."
                 : trailCount > 0
                   ? "Re-import All"
-                  : "Import workouts"}
+                  : "Import Workouts"}
             </Text>
           </TouchableOpacity>
 
@@ -266,11 +319,11 @@ export default function SettingsScreen() {
                 styles.outlinedButton,
                 {
                   borderColor: colors.border,
-                  opacity: importing ? 0.6 : 1,
+                  opacity: busy ? 0.6 : 1,
                 },
               ]}
               onPress={handleFetchNew}
-              disabled={importing}
+              disabled={busy}
             >
               <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
                 Fetch New Routes
@@ -284,7 +337,61 @@ export default function SettingsScreen() {
           workouts with GPS routes from your device.
         </Text>
 
-        {/* Data section */}
+        {/* Backup & Restore section */}
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          BACKUP & RESTORE
+        </Text>
+        <View style={styles.buttonGroup}>
+          {trailCount > 0 && (
+            <TouchableOpacity
+              style={[
+                styles.outlinedButton,
+                {
+                  borderColor: colors.border,
+                  opacity: busy ? 0.6 : 1,
+                  flexDirection: "row",
+                  gap: 8,
+                  justifyContent: "center",
+                },
+              ]}
+              onPress={handleExportData}
+              disabled={busy}
+            >
+              <Feather name="upload" size={18} color={colors.text} />
+              <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
+                {dataExporting ? "Exporting..." : "Export Data"}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[
+              styles.outlinedButton,
+              {
+                borderColor: colors.border,
+                opacity: busy ? 0.6 : 1,
+                flexDirection: "row",
+                gap: 8,
+                justifyContent: "center",
+              },
+            ]}
+            onPress={handleImportData}
+            disabled={busy}
+          >
+            <Feather name="download" size={18} color={colors.text} />
+            <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
+              {dataImporting ? "Importing..." : "Import From File"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
+          {trailCount > 0
+            ? "Export your trails as a signed backup file. Import on another device or after reinstalling."
+            : "Import trails from a backup file."}
+        </Text>
+
+        {/* Delete section */}
         {trailCount > 0 && (
           <View style={styles.dangerSection}>
             <TouchableOpacity
@@ -292,11 +399,11 @@ export default function SettingsScreen() {
                 styles.deleteButton,
                 {
                   borderColor: colors.danger,
-                  opacity: importing || deleting ? 0.6 : 1,
+                  opacity: busy ? 0.6 : 1,
                 },
               ]}
               onPress={handleDeleteAll}
-              disabled={importing || deleting}
+              disabled={busy}
             >
               <Text style={[styles.deleteButtonText, { color: colors.danger }]}>
                 {deleting ? "Deleting..." : "Delete All Data"}

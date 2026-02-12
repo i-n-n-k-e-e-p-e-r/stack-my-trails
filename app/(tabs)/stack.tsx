@@ -197,7 +197,7 @@ export default function StackScreen() {
           onPress={() => router.push("/(tabs)/settings")}
         >
           <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
-            Import workouts
+            Import Workouts
           </Text>
         </TouchableOpacity>
       </View>

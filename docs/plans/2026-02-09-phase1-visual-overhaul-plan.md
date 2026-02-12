@@ -534,7 +534,7 @@ export default function TrailsScreen() {
         <TouchableOpacity
           style={[styles.emptyButton, { backgroundColor: colors.teal }]}
           onPress={() => router.push("/(tabs)/settings")}>
-          <Text style={styles.emptyButtonText}>Import workouts</Text>
+          <Text style={styles.emptyButtonText}>Import Workouts</Text>
         </TouchableOpacity>
       </View>
     );
@@ -875,7 +875,7 @@ export default function StackScreen() {
         <TouchableOpacity
           style={[styles.emptyButton, { backgroundColor: colors.teal }]}
           onPress={() => router.push("/(tabs)/settings")}>
-          <Text style={styles.emptyButtonText}>Import workouts</Text>
+          <Text style={styles.emptyButtonText}>Import Workouts</Text>
         </TouchableOpacity>
       </View>
     );
@@ -1263,7 +1263,7 @@ export default function SettingsScreen() {
               ? 'Importing...'
               : trailCount > 0
                 ? 'Re-import All'
-                : 'Import workouts'}
+                : 'Import Workouts'}
           </Text>
         </TouchableOpacity>
 
