@@ -21,7 +21,8 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
-import { getTrailCount } from "@/lib/db";
+import * as Location from "expo-location";
+import { getTrailCount, getSetting } from "@/lib/db";
 import { useTrails } from "@/hooks/use-trails";
 import { smoothCoordinates, type Trail } from "@/lib/geo";
 import { setExportData } from "@/lib/export-store";
@@ -42,10 +43,22 @@ export default function StackScreen() {
   const router = useRouter();
   const db = useSQLiteContext();
   const [hasTrails, setHasTrails] = useState(true);
+  const [showLocation, setShowLocation] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       getTrailCount(db).then((count) => setHasTrails(count > 0));
+      getSetting(db, "showLocation")
+        .then(async (v) => {
+          if (v === "true") {
+            const { status } =
+              await Location.getForegroundPermissionsAsync();
+            setShowLocation(status === "granted");
+          } else {
+            setShowLocation(false);
+          }
+        })
+        .catch(() => {});
     }, [db]),
   );
 
@@ -222,6 +235,7 @@ export default function StackScreen() {
         showsPointsOfInterest={false}
         showsBuildings={false}
         pitchEnabled={false}
+        showsUserLocation={showLocation}
         onRegionChangeComplete={setMapRegion}
       >
         {renderedTrails.map((trail) => (

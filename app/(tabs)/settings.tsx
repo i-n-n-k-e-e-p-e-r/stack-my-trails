@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Switch,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSQLiteContext } from "expo-sqlite";
 import { Feather } from "@expo/vector-icons";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
+import * as Location from "expo-location";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { useImportTrails } from "@/hooks/use-import-trails";
@@ -20,6 +22,8 @@ import {
   getLastImportDate,
   getLatestTrailDate,
   deleteAllTrails,
+  getSetting,
+  setSetting,
 } from "@/lib/db";
 import { useThemePreference, type ThemePreference } from "@/contexts/theme";
 import { resetFilters } from "@/lib/filter-store";
@@ -63,6 +67,7 @@ export default function SettingsScreen() {
   const [deleting, setDeleting] = useState(false);
   const [dataExporting, setDataExporting] = useState(false);
   const [dataImporting, setDataImporting] = useState(false);
+  const [showLocation, setShowLocation] = useState(false);
 
   const refreshStats = useCallback(() => {
     getTrailCount(db).then(setTrailCount);
@@ -71,6 +76,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     refreshStats();
+    getSetting(db, "showLocation").then((v) => setShowLocation(v === "true")).catch(() => {});
   }, [refreshStats, importing, deleting]);
 
   // Reset filters after import completes or data is deleted
@@ -86,6 +92,24 @@ export default function SettingsScreen() {
     const latest = await getLatestTrailDate(db);
     startImport(latest);
   }, [db, startImport]);
+
+  const handleToggleLocation = useCallback(
+    async (value: boolean) => {
+      if (value) {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert(
+            "Location Access",
+            "Please enable location access in Settings to show your position on the map.",
+          );
+          return;
+        }
+      }
+      setShowLocation(value);
+      setSetting(db, "showLocation", value ? "true" : "false").catch(() => {});
+    },
+    [db],
+  );
 
   const handleDeleteAll = useCallback(() => {
     Alert.alert(
@@ -213,6 +237,34 @@ export default function SettingsScreen() {
               );
             })}
           </View>
+        </View>
+
+        {/* Map section */}
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          MAP
+        </Text>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+            },
+          ]}
+        >
+          <Text style={[styles.switchLabel, { color: colors.text }]}>
+            Show My Location
+          </Text>
+          <Switch
+            value={showLocation}
+            onValueChange={handleToggleLocation}
+            trackColor={{ true: colors.accent }}
+          />
         </View>
 
         {/* Health Data section */}
@@ -473,6 +525,10 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     fontFamily: Fonts.semibold,
+    fontSize: 15,
+  },
+  switchLabel: {
+    fontFamily: Fonts.medium,
     fontSize: 15,
   },
   statRow: {
