@@ -20,6 +20,7 @@ import {
 } from "@/lib/db";
 import { useThemePreference, type ThemePreference } from "@/contexts/theme";
 import { resetFilters } from "@/lib/filter-store";
+import Constants from "expo-constants";
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
   { value: "auto", label: "Auto" },
@@ -316,7 +317,7 @@ export default function SettingsScreen() {
         ]}
       >
         <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-          © Stack My Trails v1.0
+          © Stack My Trails v{Constants.expoConfig?.version ?? "1.0.0"}
         </Text>
       </View>
     </View>
