@@ -143,7 +143,6 @@ export default function ExportModal() {
     (async () => {
       try {
         const { Asset } = await import("expo-asset");
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const fontAsset = Asset.fromModule(
           require("@/assets/fonts/Geist-Bold.otf"),
         );

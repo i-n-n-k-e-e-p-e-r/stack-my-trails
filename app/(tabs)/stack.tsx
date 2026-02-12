@@ -11,6 +11,7 @@ import {
   Text,
   TouchableOpacity,
   ActivityIndicator,
+  useWindowDimensions,
 } from "react-native";
 import MapView, { Polyline, type Region } from "react-native-maps";
 import { Feather } from "@expo/vector-icons";
@@ -25,11 +26,13 @@ import { smoothCoordinates, type Trail } from "@/lib/geo";
 import { setExportData } from "@/lib/export-store";
 
 const TRAIL_WIDTH = 3;
+const EXPORT_ASPECT_RATIO = 3 / 4; // 3:4 poster aspect
 
 export default function StackScreen() {
   const insets = useSafeAreaInsets();
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
+  const dimensions = useWindowDimensions();
   const mapRef = useRef<MapView>(null);
   const router = useRouter();
   const db = useSQLiteContext();
@@ -136,6 +139,33 @@ export default function StackScreen() {
 
   const totalInCluster = selectedCluster?.summaries.length ?? 0;
 
+  // Calculate export frame dimensions (3:4 aspect ratio)
+  const exportFrame = useMemo(() => {
+    const screenWidth = dimensions.width;
+    const screenHeight = dimensions.height;
+    const screenAspect = screenWidth / screenHeight;
+
+    if (screenAspect < EXPORT_ASPECT_RATIO) {
+      // Screen is more portrait than poster — crop height
+      const frameHeight = screenWidth / EXPORT_ASPECT_RATIO;
+      return {
+        width: screenWidth,
+        height: frameHeight,
+        top: (screenHeight - frameHeight) / 2,
+        left: 0,
+      };
+    } else {
+      // Screen is wider than poster — crop width
+      const frameWidth = screenHeight * EXPORT_ASPECT_RATIO;
+      return {
+        width: frameWidth,
+        height: screenHeight,
+        top: 0,
+        left: (screenWidth - frameWidth) / 2,
+      };
+    }
+  }, [dimensions]);
+
   if (!hasTrails) {
     return (
       <View
@@ -188,6 +218,21 @@ export default function StackScreen() {
           />
         ))}
       </MapView>
+
+      {/* Export frame preview overlay */}
+      <View
+        style={[
+          styles.exportFrame,
+          {
+            width: exportFrame.width,
+            height: exportFrame.height,
+            top: exportFrame.top,
+            left: exportFrame.left,
+            borderColor: colors.text,
+          },
+        ]}
+        pointerEvents="none"
+      />
 
       {/* Floating capsule top bar */}
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
@@ -345,5 +390,12 @@ const styles = StyleSheet.create({
   loadingText: {
     fontFamily: Fonts.medium,
     fontSize: 15,
+  },
+  exportFrame: {
+    position: "absolute",
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderStyle: "dotted",
+    opacity: 0.25,
   },
 });
