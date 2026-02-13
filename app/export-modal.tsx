@@ -731,7 +731,7 @@ export default function ExportModal() {
       </View>
 
       {/* Bottom buttons */}
-      <View style={[styles.bottomBar, { paddingBottom: insets.bottom }]}>
+      <View style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.buttonsRow}>
           <TouchableOpacity
             style={[

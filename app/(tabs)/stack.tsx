@@ -236,6 +236,7 @@ export default function StackScreen() {
         showsBuildings={false}
         pitchEnabled={false}
         showsUserLocation={showLocation}
+        legalLabelInsets={{ top: 0, left: 0, bottom: 10, right: 10 }}
         onRegionChangeComplete={setMapRegion}
       >
         {renderedTrails.map((trail) => (

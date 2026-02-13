@@ -465,22 +465,11 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
 
-      {/* Fixed footer */}
-      <View
-        style={[
-          styles.footer,
-          {
-            paddingBottom: insets.bottom - 20,
-            backgroundColor: colors.background,
-          },
-        ]}
-      >
-        <Text style={[styles.footerText, { color: colors.textSecondary }]}>
-          © Stack My Trails v{Constants.expoConfig?.version ?? "1.0.0"}
+        <Text style={[styles.versionText, { color: colors.textSecondary }]}>
+          Stack My Trails v{Constants.expoConfig?.version ?? "1.0.0"}
         </Text>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -629,13 +618,11 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semibold,
     fontSize: 16,
   },
-  footer: {
-    paddingTop: 16,
-    alignItems: "center",
-  },
-  footerText: {
+  versionText: {
     fontFamily: Fonts.regular,
     fontSize: 12,
     textAlign: "center",
+    marginTop: 24,
+    marginBottom: 8,
   },
 });

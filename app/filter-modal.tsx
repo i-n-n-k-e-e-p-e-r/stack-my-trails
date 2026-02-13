@@ -5,7 +5,6 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
-  Platform,
   ActivityIndicator,
   Alert,
 } from "react-native";

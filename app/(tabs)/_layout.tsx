@@ -21,7 +21,7 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.tabBarWrapper, { bottom: insets.bottom + 8 }]}>
+    <View style={[styles.tabBarWrapper, { bottom: insets.bottom + 12 }]}>
       <View
         style={[
           styles.tabBar,
