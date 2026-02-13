@@ -76,8 +76,10 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     refreshStats();
-    getSetting(db, "showLocation").then((v) => setShowLocation(v === "true")).catch(() => {});
-  }, [refreshStats, importing, deleting]);
+    getSetting(db, "showLocation")
+      .then((v) => setShowLocation(v === "true"))
+      .catch(() => {});
+  }, [refreshStats, importing, deleting, db]);
 
   // Reset filters after import completes or data is deleted
   const prevImporting = React.useRef(importing);
