@@ -15,7 +15,11 @@ import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
-import { getAllTrailSummaries, renameTrailLabel, getTrailDateRange } from "@/lib/db";
+import {
+  getAllTrailSummaries,
+  renameTrailLabel,
+  getTrailDateRange,
+} from "@/lib/db";
 import { getFilters, setFilters } from "@/lib/filter-store";
 import type { TrailSummary } from "@/lib/geo";
 
@@ -23,7 +27,6 @@ const PRESETS = [
   { label: "1D", days: 1 },
   { label: "1W", days: 7 },
   { label: "1M", days: 30 },
-  { label: "6M", days: 183 },
   { label: "1Y", days: 365 },
   { label: "All", days: 3650 },
 ] as const;
@@ -119,7 +122,10 @@ export default function FilterModal() {
   const [areaGroups, setAreaGroups] = useState<AreaGroup[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
-  const [dbDateRange, setDbDateRange] = useState<{ minDate: Date; maxDate: Date } | null>(null);
+  const [dbDateRange, setDbDateRange] = useState<{
+    minDate: Date;
+    maxDate: Date;
+  } | null>(null);
 
   const reloadAreas = async () => {
     const summaries = await getAllTrailSummaries(db);
@@ -164,7 +170,12 @@ export default function FilterModal() {
       "Rename Area",
       `Current: "${currentDisplay}"`,
       async (newName) => {
-        if (!newName || newName.trim() === "" || newName.trim() === currentDisplay) return;
+        if (
+          !newName ||
+          newName.trim() === "" ||
+          newName.trim() === currentDisplay
+        )
+          return;
         const trimmed = newName.trim();
         for (const oldLabel of labels) {
           await renameTrailLabel(db, oldLabel, trimmed);
@@ -185,21 +196,24 @@ export default function FilterModal() {
   const getActivePreset = () => {
     // Check if "All" preset is active by comparing with database date range
     if (dbDateRange) {
-      const isAllPreset = 
+      const isAllPreset =
         Math.abs(startDate.getTime() - dbDateRange.minDate.getTime()) < 1000 &&
         Math.abs(endDate.getTime() - dbDateRange.maxDate.getTime()) < 1000;
       if (isAllPreset) return "All";
     }
-    
+
     // Check other presets by day difference
     const diffMs = endDate.getTime() - startDate.getTime();
     const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
-    return PRESETS.find((p) => p.label !== "All" && Math.abs(p.days - diffDays) <= 1)?.label ?? null;
+    return (
+      PRESETS.find((p) => p.label !== "All" && Math.abs(p.days - diffDays) <= 1)
+        ?.label ?? null
+    );
   };
 
   const handlePreset = async (days: number) => {
     const now = new Date();
-    
+
     // For "All" preset, use actual database date range
     if (days >= 3650) {
       const dateRange = await getTrailDateRange(db);
@@ -208,7 +222,9 @@ export default function FilterModal() {
         setEndDate(dateRange.maxDate);
       } else {
         // Fallback if no data
-        const start = new Date(now.getTime() - (days / 2) * 24 * 60 * 60 * 1000);
+        const start = new Date(
+          now.getTime() - (days / 2) * 24 * 60 * 60 * 1000,
+        );
         const end = new Date(now.getTime() + (days / 2) * 24 * 60 * 60 * 1000);
         setStartDate(start);
         setEndDate(end);
@@ -269,8 +285,13 @@ export default function FilterModal() {
         />
       </View>
 
-      {/* Fixed date range section */}
-      <View style={styles.fixedSection}>
+      {/* Scrollable content */}
+      <ScrollView
+        style={styles.scrollContent}
+        contentContainerStyle={styles.scrollContentInner}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Date range section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
           DATE RANGE
         </Text>
@@ -320,15 +341,16 @@ export default function FilterModal() {
               setShowCustomEnd(false);
             }}
           >
-            <Text
-              style={[styles.dateChevron, { color: colors.textSecondary }]}
-            >
+            <Text style={[styles.dateChevron, { color: colors.textSecondary }]}>
               {showCustomStart ? "\u25B4" : "\u25BE"}
             </Text>
             <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
               From
             </Text>
-            <Text style={[styles.dateValue, { color: colors.text }]}>
+            <Text
+              style={[styles.dateValue, { color: colors.text }]}
+              numberOfLines={1}
+            >
               {startDate.toLocaleDateString(undefined, {
                 month: "short",
                 day: "numeric",
@@ -365,15 +387,16 @@ export default function FilterModal() {
               setShowCustomStart(false);
             }}
           >
-            <Text
-              style={[styles.dateChevron, { color: colors.textSecondary }]}
-            >
+            <Text style={[styles.dateChevron, { color: colors.textSecondary }]}>
               {showCustomEnd ? "\u25B4" : "\u25BE"}
             </Text>
             <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
               To
             </Text>
-            <Text style={[styles.dateValue, { color: colors.text }]}>
+            <Text
+              style={[styles.dateValue, { color: colors.text }]}
+              numberOfLines={1}
+            >
               {endDate.toLocaleDateString(undefined, {
                 month: "short",
                 day: "numeric",
@@ -388,7 +411,6 @@ export default function FilterModal() {
               mode="date"
               display={Platform.OS === "ios" ? "inline" : "default"}
               minimumDate={startDate}
-              maximumDate={new Date()}
               onChange={(_, date) => {
                 if (date) setEndDate(date);
               }}
@@ -397,10 +419,8 @@ export default function FilterModal() {
             />
           )}
         </View>
-      </View>
 
-      {/* Scrollable area selection */}
-      <View style={styles.areaSection}>
+        {/* Areas section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
           AREAS
         </Text>
@@ -424,216 +444,205 @@ export default function FilterModal() {
                 },
               ]}
             >
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {areaGroups.map((group, gIdx) => {
-                  const hasSubs = group.subAreas.length > 1;
-                  const isExpanded = expandedGroups.has(gIdx);
-                  const groupSelected = labelsMatch(
-                    selectedLabels,
-                    group.allLabels,
-                  );
-                  const isLast = gIdx === areaGroups.length - 1;
+              {areaGroups.map((group, gIdx) => {
+                const hasSubs = group.subAreas.length > 1;
+                const isExpanded = expandedGroups.has(gIdx);
+                const groupSelected = labelsMatch(
+                  selectedLabels,
+                  group.allLabels,
+                );
+                const isLast = gIdx === areaGroups.length - 1;
 
-                  if (!hasSubs) {
-                    const sub = group.subAreas[0];
-                    const isActive = labelsMatch(selectedLabels, sub.labels);
+                if (!hasSubs) {
+                  const sub = group.subAreas[0];
+                  const isActive = labelsMatch(selectedLabels, sub.labels);
 
-                    return (
-                      <TouchableOpacity
-                        key={gIdx}
+                  return (
+                    <TouchableOpacity
+                      key={gIdx}
+                      style={[
+                        styles.areaRow,
+                        !isLast && {
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: colors.borderLight,
+                        },
+                      ]}
+                      onPress={() => selectArea(sub.labels, sub.fullLabel)}
+                      onLongPress={() =>
+                        handleRenameLabel(sub.labels, sub.fullLabel)
+                      }
+                    >
+                      <View
                         style={[
-                          styles.areaRow,
+                          styles.radio,
+                          {
+                            borderColor: isActive
+                              ? colors.accent
+                              : colors.textSecondary,
+                            backgroundColor: isActive
+                              ? colors.accent
+                              : "transparent",
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[styles.areaLabel, { color: colors.text }]}
+                        numberOfLines={1}
+                      >
+                        {sub.fullLabel}
+                      </Text>
+                      <View
+                        style={[
+                          styles.countPill,
+                          { borderColor: colors.border, borderWidth: 1 },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.countPillText, { color: colors.text }]}
+                        >
+                          {sub.count}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }
+
+                return (
+                  <View key={gIdx}>
+                    <TouchableOpacity
+                      style={[
+                        styles.areaRow,
+                        !isExpanded &&
                           !isLast && {
                             borderBottomWidth: StyleSheet.hairlineWidth,
                             borderBottomColor: colors.borderLight,
                           },
-                        ]}
-                        onPress={() => selectArea(sub.labels, sub.fullLabel)}
-                        onLongPress={() =>
-                          handleRenameLabel(sub.labels, sub.fullLabel)
-                        }
-                      >
-                        <View
-                          style={[
-                            styles.radio,
-                            {
-                              borderColor: isActive
-                                ? colors.accent
-                                : colors.textSecondary,
-                              backgroundColor: isActive
-                                ? colors.accent
-                                : "transparent",
-                            },
-                          ]}
-                        />
-                        <Text
-                          style={[styles.areaLabel, { color: colors.text }]}
-                          numberOfLines={1}
-                        >
-                          {sub.fullLabel}
-                        </Text>
-                        <View
-                          style={[
-                            styles.countPill,
-                            { borderColor: colors.border, borderWidth: 1 },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.countPillText,
-                              { color: colors.text },
-                            ]}
-                          >
-                            {sub.count}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    );
-                  }
-
-                  return (
-                    <View key={gIdx}>
-                      <TouchableOpacity
+                      ]}
+                      onPress={() => {
+                        selectArea(group.allLabels, group.label);
+                        toggleGroup(gIdx);
+                      }}
+                    >
+                      <View
                         style={[
-                          styles.areaRow,
-                          !isExpanded &&
-                            !isLast && {
-                              borderBottomWidth: StyleSheet.hairlineWidth,
-                              borderBottomColor: colors.borderLight,
-                            },
+                          styles.radio,
+                          {
+                            borderColor: groupSelected
+                              ? colors.accent
+                              : colors.textSecondary,
+                            backgroundColor: groupSelected
+                              ? colors.accent
+                              : "transparent",
+                          },
                         ]}
-                        onPress={() => {
-                          selectArea(group.allLabels, group.label);
-                          toggleGroup(gIdx);
-                        }}
+                      />
+                      <Text
+                        style={[
+                          styles.areaLabel,
+                          { color: colors.text, fontFamily: Fonts.medium },
+                        ]}
+                        numberOfLines={1}
                       >
-                        <View
-                          style={[
-                            styles.radio,
-                            {
-                              borderColor: groupSelected
-                                ? colors.accent
-                                : colors.textSecondary,
-                              backgroundColor: groupSelected
-                                ? colors.accent
-                                : "transparent",
-                            },
-                          ]}
-                        />
+                        {group.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.chevron,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {isExpanded ? "\u25B4" : "\u25BE"}
+                      </Text>
+                      <View
+                        style={[
+                          styles.countPill,
+                          { borderColor: colors.border, borderWidth: 1 },
+                        ]}
+                      >
                         <Text
-                          style={[
-                            styles.areaLabel,
-                            { color: colors.text, fontFamily: Fonts.medium },
-                          ]}
-                          numberOfLines={1}
+                          style={[styles.countPillText, { color: colors.text }]}
                         >
-                          {group.label}
+                          {group.totalCount}
                         </Text>
-                        <Text
-                          style={[
-                            styles.chevron,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {isExpanded ? "\u25B4" : "\u25BE"}
-                        </Text>
-                        <View
-                          style={[
-                            styles.countPill,
-                            { borderColor: colors.border, borderWidth: 1 },
-                          ]}
-                        >
-                          <Text
+                      </View>
+                    </TouchableOpacity>
+
+                    {isExpanded &&
+                      group.subAreas.map((sub, sIdx) => {
+                        const subSelected = labelsMatch(
+                          selectedLabels,
+                          sub.labels,
+                        );
+                        const subIsLast =
+                          sIdx === group.subAreas.length - 1 && isLast;
+
+                        return (
+                          <TouchableOpacity
+                            key={sIdx}
                             style={[
-                              styles.countPillText,
-                              { color: colors.text },
+                              styles.areaRow,
+                              styles.subAreaRow,
+                              !subIsLast && {
+                                borderBottomWidth: StyleSheet.hairlineWidth,
+                                borderBottomColor: colors.borderLight,
+                              },
                             ]}
+                            onPress={() =>
+                              selectArea(sub.labels, sub.fullLabel)
+                            }
+                            onLongPress={() =>
+                              handleRenameLabel(sub.labels, sub.fullLabel)
+                            }
                           >
-                            {group.totalCount}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-
-                      {isExpanded &&
-                        group.subAreas.map((sub, sIdx) => {
-                          const subSelected = labelsMatch(
-                            selectedLabels,
-                            sub.labels,
-                          );
-                          const subIsLast =
-                            sIdx === group.subAreas.length - 1 && isLast;
-
-                          return (
-                            <TouchableOpacity
-                              key={sIdx}
+                            <View
                               style={[
-                                styles.areaRow,
-                                styles.subAreaRow,
-                                !subIsLast && {
-                                  borderBottomWidth: StyleSheet.hairlineWidth,
-                                  borderBottomColor: colors.borderLight,
+                                styles.radioSmall,
+                                {
+                                  borderColor: subSelected
+                                    ? colors.accent
+                                    : colors.textSecondary,
+                                  backgroundColor: subSelected
+                                    ? colors.accent
+                                    : "transparent",
                                 },
                               ]}
-                              onPress={() =>
-                                selectArea(sub.labels, sub.fullLabel)
-                              }
-                              onLongPress={() =>
-                                handleRenameLabel(sub.labels, sub.fullLabel)
-                              }
+                            />
+                            <Text
+                              style={[styles.areaLabel, { color: colors.text }]}
+                              numberOfLines={1}
                             >
-                              <View
-                                style={[
-                                  styles.radioSmall,
-                                  {
-                                    borderColor: subSelected
-                                      ? colors.accent
-                                      : colors.textSecondary,
-                                    backgroundColor: subSelected
-                                      ? colors.accent
-                                      : "transparent",
-                                  },
-                                ]}
-                              />
+                              {sub.label}
+                            </Text>
+                            <View
+                              style={[
+                                styles.countPill,
+                                {
+                                  borderColor: colors.border,
+                                  borderWidth: 1,
+                                },
+                              ]}
+                            >
                               <Text
                                 style={[
-                                  styles.areaLabel,
+                                  styles.countPillText,
                                   { color: colors.text },
                                 ]}
-                                numberOfLines={1}
                               >
-                                {sub.label}
+                                {sub.count}
                               </Text>
-                              <View
-                                style={[
-                                  styles.countPill,
-                                  {
-                                    borderColor: colors.border,
-                                    borderWidth: 1,
-                                  },
-                                ]}
-                              >
-                                <Text
-                                  style={[
-                                    styles.countPillText,
-                                    { color: colors.text },
-                                  ]}
-                                >
-                                  {sub.count}
-                                </Text>
-                              </View>
-                            </TouchableOpacity>
-                          );
-                        })}
-                    </View>
-                  );
-                })}
-              </ScrollView>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                  </View>
+                );
+              })}
             </View>
           )
         )}
-      </View>
+      </ScrollView>
 
-      {/* Apply button */}
+      {/* Apply button — always at bottom */}
       <View style={styles.applyContainer}>
         <TouchableOpacity
           style={[
@@ -670,17 +679,16 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
   },
-  fixedSection: {
+  scrollContent: {
+    flex: 1,
+  },
+  scrollContentInner: {
     paddingHorizontal: 20,
     paddingTop: 12,
-  },
-  areaSection: {
-    flex: 1,
-    paddingHorizontal: 20,
-    minHeight: 0,
+    paddingBottom: 8,
   },
   areaLoading: {
-    flex: 1,
+    paddingVertical: 40,
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
@@ -719,33 +727,35 @@ const styles = StyleSheet.create({
   },
   dateRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
     gap: 6,
   },
   dateLabel: {
     fontFamily: Fonts.regular,
     fontSize: 15,
+    flexShrink: 0,
   },
   dateValue: {
     fontFamily: Fonts.medium,
     fontSize: 15,
     marginLeft: "auto",
+    flexShrink: 1,
+    textAlign: "right",
   },
   dateChevron: {
     fontSize: 12,
+    flexShrink: 0,
   },
   dateSeparator: {
     height: StyleSheet.hairlineWidth,
     marginHorizontal: 14,
   },
   areaCard: {
-    flex: 1,
     borderRadius: 32,
     borderWidth: 2,
     overflow: "hidden",
-    marginBottom: 8,
   },
   areaRow: {
     flexDirection: "row",
@@ -789,6 +799,7 @@ const styles = StyleSheet.create({
   applyContainer: {
     paddingHorizontal: 20,
     paddingVertical: 12,
+    backgroundBlendMode: "overlay",
   },
   applyButton: {
     borderWidth: 2,
