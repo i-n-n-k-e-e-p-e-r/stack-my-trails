@@ -117,8 +117,6 @@ export default function FilterModal() {
   const [selectedDisplayLabel, setSelectedDisplayLabel] = useState<string>(
     currentFilters.areaLabel ?? "",
   );
-  const [showCustomStart, setShowCustomStart] = useState(false);
-  const [showCustomEnd, setShowCustomEnd] = useState(false);
   const [areaGroups, setAreaGroups] = useState<AreaGroup[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
@@ -236,8 +234,6 @@ export default function FilterModal() {
       setStartDate(start);
       setEndDate(end);
     }
-    setShowCustomStart(false);
-    setShowCustomEnd(false);
   };
 
   const selectArea = (labels: string[], displayLabel: string) => {
@@ -330,40 +326,18 @@ export default function FilterModal() {
 
         <View
           style={[
-            styles.dateCard,
+            styles.datePickerRow,
             { backgroundColor: colors.surface, borderColor: colors.border },
           ]}
         >
-          <TouchableOpacity
-            style={styles.dateRow}
-            onPress={() => {
-              setShowCustomStart(!showCustomStart);
-              setShowCustomEnd(false);
-            }}
-          >
-            <Text style={[styles.dateChevron, { color: colors.textSecondary }]}>
-              {showCustomStart ? "\u25B4" : "\u25BE"}
-            </Text>
+          <View style={styles.datePickerCol}>
             <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
-              From
+              From:
             </Text>
-            <Text
-              style={[styles.dateValue, { color: colors.text }]}
-              numberOfLines={1}
-            >
-              {startDate.toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </Text>
-          </TouchableOpacity>
-
-          {showCustomStart && (
             <DateTimePicker
               value={startDate}
               mode="date"
-              display={Platform.OS === "ios" ? "inline" : "default"}
+              display="compact"
               maximumDate={endDate}
               onChange={(_, date) => {
                 if (date) setStartDate(date);
@@ -371,45 +345,15 @@ export default function FilterModal() {
               themeVariant={colorScheme}
               accentColor={colors.text}
             />
-          )}
-
-          <View
-            style={[
-              styles.dateSeparator,
-              { backgroundColor: colors.borderLight },
-            ]}
-          />
-
-          <TouchableOpacity
-            style={styles.dateRow}
-            onPress={() => {
-              setShowCustomEnd(!showCustomEnd);
-              setShowCustomStart(false);
-            }}
-          >
-            <Text style={[styles.dateChevron, { color: colors.textSecondary }]}>
-              {showCustomEnd ? "\u25B4" : "\u25BE"}
-            </Text>
+          </View>
+          <View style={styles.datePickerCol}>
             <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
-              To
+              To:
             </Text>
-            <Text
-              style={[styles.dateValue, { color: colors.text }]}
-              numberOfLines={1}
-            >
-              {endDate.toLocaleDateString(undefined, {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </Text>
-          </TouchableOpacity>
-
-          {showCustomEnd && (
             <DateTimePicker
               value={endDate}
               mode="date"
-              display={Platform.OS === "ios" ? "inline" : "default"}
+              display="compact"
               minimumDate={startDate}
               onChange={(_, date) => {
                 if (date) setEndDate(date);
@@ -417,7 +361,7 @@ export default function FilterModal() {
               themeVariant={colorScheme}
               accentColor={colors.text}
             />
-          )}
+          </View>
         </View>
 
         {/* Areas section */}
@@ -719,38 +663,27 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semibold,
     fontSize: 13,
   },
-  dateCard: {
+  datePickerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     borderRadius: 32,
     borderWidth: 2,
     overflow: "hidden",
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     marginBottom: 24,
   },
-  dateRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    gap: 6,
+  datePickerCol: {
+    flex: 1,
+    alignItems: "stretch",
+    gap: 4,
+    transform: [{ scale: 0.85 }],
   },
   dateLabel: {
-    fontFamily: Fonts.regular,
-    fontSize: 15,
-    flexShrink: 0,
-  },
-  dateValue: {
     fontFamily: Fonts.medium,
-    fontSize: 15,
-    marginLeft: "auto",
-    flexShrink: 1,
-    textAlign: "right",
-  },
-  dateChevron: {
     fontSize: 12,
-    flexShrink: 0,
-  },
-  dateSeparator: {
-    height: StyleSheet.hairlineWidth,
-    marginHorizontal: 14,
+    letterSpacing: 1,
   },
   areaCard: {
     borderRadius: 32,
