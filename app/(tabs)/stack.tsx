@@ -51,8 +51,7 @@ export default function StackScreen() {
       getSetting(db, "showLocation")
         .then(async (v) => {
           if (v === "true") {
-            const { status } =
-              await Location.getForegroundPermissionsAsync();
+            const { status } = await Location.getForegroundPermissionsAsync();
             setShowLocation(status === "granted");
           } else {
             setShowLocation(false);
@@ -206,10 +205,16 @@ export default function StackScreen() {
           Import your workouts first to stack them on the map.
         </Text>
         <TouchableOpacity
-          style={[styles.emptyButton, { backgroundColor: colors.accent }]}
+          style={[
+            styles.emptyButton,
+            {
+              backgroundColor: colors.accent,
+              borderColor: colors.activeSelectionBorder,
+            },
+          ]}
           onPress={() => router.push("/(tabs)/settings")}
         >
-          <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
+          <Text style={[styles.emptyButtonText, { color: colors.text }]}>
             Import Workouts
           </Text>
         </TouchableOpacity>

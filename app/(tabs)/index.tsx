@@ -268,10 +268,16 @@ export default function TrailsScreen() {
           Import your workouts to see them here.
         </Text>
         <TouchableOpacity
-          style={[styles.emptyButton, { backgroundColor: colors.accent }]}
+          style={[
+            styles.emptyButton,
+            {
+              backgroundColor: colors.accent,
+              borderColor: colors.activeSelectionBorder,
+            },
+          ]}
           onPress={() => router.push("/(tabs)/settings")}
         >
-          <Text style={[styles.emptyButtonText, { color: colors.buttonText }]}>
+          <Text style={[styles.emptyButtonText, { color: colors.text }]}>
             Import Workouts
           </Text>
         </TouchableOpacity>
@@ -325,7 +331,10 @@ export default function TrailsScreen() {
         style={[styles.divider, { borderColor: colors.border }]}
       >
         <View
-          style={[styles.dividerHandle, { backgroundColor: colors.textSecondary }]}
+          style={[
+            styles.dividerHandle,
+            { backgroundColor: colors.textSecondary },
+          ]}
         />
       </View>
 
