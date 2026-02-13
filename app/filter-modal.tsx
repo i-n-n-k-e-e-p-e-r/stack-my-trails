@@ -15,7 +15,7 @@ import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
-import { getAllTrailSummaries, renameTrailLabel } from "@/lib/db";
+import { getAllTrailSummaries, renameTrailLabel, getTrailDateRange } from "@/lib/db";
 import { getFilters, setFilters } from "@/lib/filter-store";
 import type { TrailSummary } from "@/lib/geo";
 
@@ -119,6 +119,7 @@ export default function FilterModal() {
   const [areaGroups, setAreaGroups] = useState<AreaGroup[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  const [dbDateRange, setDbDateRange] = useState<{ minDate: Date; maxDate: Date } | null>(null);
 
   const reloadAreas = async () => {
     const summaries = await getAllTrailSummaries(db);
@@ -133,7 +134,10 @@ export default function FilterModal() {
 
     async function loadAreas() {
       const groups = await reloadAreas();
+      const dateRange = await getTrailDateRange(db);
       if (cancelled) return;
+
+      setDbDateRange(dateRange);
 
       if (selectedLabels.length > 0) {
         for (let i = 0; i < groups.length; i++) {
@@ -179,16 +183,43 @@ export default function FilterModal() {
   };
 
   const getActivePreset = () => {
+    // Check if "All" preset is active by comparing with database date range
+    if (dbDateRange) {
+      const isAllPreset = 
+        Math.abs(startDate.getTime() - dbDateRange.minDate.getTime()) < 1000 &&
+        Math.abs(endDate.getTime() - dbDateRange.maxDate.getTime()) < 1000;
+      if (isAllPreset) return "All";
+    }
+    
+    // Check other presets by day difference
     const diffMs = endDate.getTime() - startDate.getTime();
     const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
-    return PRESETS.find((p) => Math.abs(p.days - diffDays) <= 1)?.label ?? null;
+    return PRESETS.find((p) => p.label !== "All" && Math.abs(p.days - diffDays) <= 1)?.label ?? null;
   };
 
-  const handlePreset = (days: number) => {
-    const end = new Date();
-    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
-    setStartDate(start);
-    setEndDate(end);
+  const handlePreset = async (days: number) => {
+    const now = new Date();
+    
+    // For "All" preset, use actual database date range
+    if (days >= 3650) {
+      const dateRange = await getTrailDateRange(db);
+      if (dateRange) {
+        setStartDate(dateRange.minDate);
+        setEndDate(dateRange.maxDate);
+      } else {
+        // Fallback if no data
+        const start = new Date(now.getTime() - (days / 2) * 24 * 60 * 60 * 1000);
+        const end = new Date(now.getTime() + (days / 2) * 24 * 60 * 60 * 1000);
+        setStartDate(start);
+        setEndDate(end);
+      }
+    } else {
+      // Other presets: backwards from today
+      const end = now;
+      const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+      setStartDate(start);
+      setEndDate(end);
+    }
     setShowCustomStart(false);
     setShowCustomEnd(false);
   };

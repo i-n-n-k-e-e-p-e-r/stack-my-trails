@@ -334,6 +334,20 @@ export async function getLatestTrailDate(
   return result ? new Date(result.start_date) : null;
 }
 
+/** Get the min and max trail dates in the database */
+export async function getTrailDateRange(
+  db: SQLiteDatabase,
+): Promise<{ minDate: Date; maxDate: Date } | null> {
+  const result = await db.getFirstAsync<{ min_date: string; max_date: string }>(
+    'SELECT MIN(start_date) as min_date, MAX(start_date) as max_date FROM trails',
+  );
+  if (!result || !result.min_date || !result.max_date) return null;
+  return {
+    minDate: new Date(result.min_date),
+    maxDate: new Date(result.max_date),
+  };
+}
+
 // ---------- Settings ----------
 
 export async function getSetting(

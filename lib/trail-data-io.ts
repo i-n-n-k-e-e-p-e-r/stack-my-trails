@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 import { digestStringAsync, CryptoDigestAlgorithm } from "expo-crypto";
 import { File as ExpoFile, Paths } from "expo-file-system";
-import type { Trail, Coordinate, BoundingBox } from "./geo";
+import type { Coordinate, BoundingBox } from "./geo";
 
 const APP_ID = "stack-my-trails";
 const FORMAT_VERSION = 1;
@@ -105,10 +105,7 @@ export async function exportTrailData(db: SQLiteDatabase): Promise<string> {
     signature,
   };
 
-  const file = new ExpoFile(
-    Paths.cache,
-    `stack-my-trails-${Date.now()}.json`,
-  );
+  const file = new ExpoFile(Paths.cache, `stack-my-trails-${Date.now()}.json`);
   file.write(JSON.stringify(exportData));
   return file.uri;
 }
@@ -169,13 +166,8 @@ export async function importTrailData(
     if (!trail.workoutId || !trail.startDate || !trail.endDate) {
       throw new Error("Invalid trail record — missing required fields");
     }
-    if (
-      !Array.isArray(trail.coordinates) ||
-      trail.coordinates.length === 0
-    ) {
-      throw new Error(
-        `Invalid trail ${trail.workoutId} — missing coordinates`,
-      );
+    if (!Array.isArray(trail.coordinates) || trail.coordinates.length === 0) {
+      throw new Error(`Invalid trail ${trail.workoutId} — missing coordinates`);
     }
   }
 

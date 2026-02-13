@@ -1,19 +1,19 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useState, useEffect, useCallback } from "react";
+import { useSQLiteContext } from "expo-sqlite";
 import {
   getTrailSummaries,
   getTrailSummariesByLabels,
   getTrailsByIds,
-} from '@/lib/db';
+} from "@/lib/db";
 import {
   clusterTrails,
   computeBoundingBox,
   simplifyCoordinates,
   type TrailCluster,
   type Trail,
-} from '@/lib/geo';
+} from "@/lib/geo";
 
-const MAX_RENDERED_TRAILS = 500;
+const MAX_RENDERED_TRAILS = 1000;
 /** Re-simplify with coarser tolerance when many trails are stacked */
 const RESIMPLIFY_THRESHOLD = 100;
 const COARSE_TOLERANCE = 0.0002;
@@ -46,7 +46,7 @@ export function useTrails({
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  const labelsKey = labels ? labels.join('\0') : '';
+  const labelsKey = labels ? labels.join("\0") : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -59,7 +59,7 @@ export function useTrails({
         const summaries = labels
           ? labels.length > 0
             ? await getTrailSummariesByLabels(db, startDate, endDate, labels)
-            : []  // Empty labels array = no trails (no area selected)
+            : [] // Empty labels array = no trails (no area selected)
           : await getTrailSummaries(db, startDate, endDate);
         if (cancelled) return;
 
@@ -69,11 +69,12 @@ export function useTrails({
             { latitude: s.boundingBox.minLat, longitude: s.boundingBox.minLng },
             { latitude: s.boundingBox.maxLat, longitude: s.boundingBox.maxLng },
           ]);
-          const bbox = bboxCoords.length > 0
-            ? computeBoundingBox(bboxCoords)
-            : { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 };
+          const bbox =
+            bboxCoords.length > 0
+              ? computeBoundingBox(bboxCoords)
+              : { minLat: 0, maxLat: 0, minLng: 0, maxLng: 0 };
           const cluster: TrailCluster = {
-            id: 'filtered',
+            id: "filtered",
             trailIds: summaries.map((s) => s.workoutId),
             summaries,
             boundingBox: bbox,
@@ -84,7 +85,7 @@ export function useTrails({
         }
       } catch (e) {
         if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to load trails');
+          setError(e instanceof Error ? e.message : "Failed to load trails");
         }
       } finally {
         if (!cancelled) setLoading(false);
