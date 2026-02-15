@@ -27,7 +27,7 @@ import {
 } from "@/lib/db";
 import { useThemePreference, type ThemePreference } from "@/contexts/theme";
 import { useTranslation } from "@/contexts/language";
-import { LANGUAGES, type Language } from "@/lib/i18n";
+import { LANGUAGES } from "@/lib/i18n";
 import { resetFilters } from "@/lib/filter-store";
 import { exportTrailData, importTrailData } from "@/lib/trail-data-io";
 import Constants from "expo-constants";
@@ -266,64 +266,6 @@ export default function SettingsScreen() {
               );
             })}
           </View>
-        </View>
-
-        {/* Language section */}
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          {t("settings.language")}
-        </Text>
-        <View
-          style={[
-            styles.card,
-            {
-              backgroundColor: colors.surface,
-              borderColor: colors.border,
-              padding: 0,
-              overflow: "hidden",
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={styles.dropdownHeader}
-            onPress={() => setLangOpen((v) => !v)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.dropdownHeaderText, { color: colors.text }]}>
-              {LANGUAGES.find((l) => l.value === language)?.label ?? "English"}
-            </Text>
-            <Feather
-              name={langOpen ? "chevron-up" : "chevron-down"}
-              size={18}
-              color={colors.textSecondary}
-            />
-          </TouchableOpacity>
-          {langOpen &&
-            LANGUAGES.filter((opt) => opt.value !== language).map(
-              (opt, idx, arr) => (
-                <TouchableOpacity
-                  key={opt.value}
-                  style={[
-                    styles.dropdownOption,
-                    {
-                      borderTopColor: colors.borderLight,
-                      borderTopWidth: StyleSheet.hairlineWidth,
-                    },
-                    idx === arr.length - 1 && { borderBottomWidth: 0 },
-                  ]}
-                  onPress={() => {
-                    setLanguage(opt.value);
-                    setLangOpen(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text
-                    style={[styles.dropdownOptionText, { color: colors.text }]}
-                  >
-                    {opt.label}
-                  </Text>
-                </TouchableOpacity>
-              ),
-            )}
         </View>
 
         {/* Map section */}
@@ -577,6 +519,64 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Language section */}
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          {t("settings.language")}
+        </Text>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              padding: 0,
+              overflow: "hidden",
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.dropdownHeader}
+            onPress={() => setLangOpen((v) => !v)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.dropdownHeaderText, { color: colors.text }]}>
+              {LANGUAGES.find((l) => l.value === language)?.label ?? "English"}
+            </Text>
+            <Feather
+              name={langOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+          {langOpen &&
+            LANGUAGES.filter((opt) => opt.value !== language).map(
+              (opt, idx, arr) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.dropdownOption,
+                    {
+                      borderTopColor: colors.borderLight,
+                      borderTopWidth: StyleSheet.hairlineWidth,
+                    },
+                    idx === arr.length - 1 && { borderBottomWidth: 0 },
+                  ]}
+                  onPress={() => {
+                    setLanguage(opt.value);
+                    setLangOpen(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[styles.dropdownOptionText, { color: colors.text }]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ),
+            )}
+        </View>
 
         <Text style={[styles.versionText, { color: colors.textSecondary }]}>
           {t("settings.version", {
