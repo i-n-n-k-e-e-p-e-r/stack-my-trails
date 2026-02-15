@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "stack-my-trails",
+    "name": "Stack My Trails",
     "slug": "stack-my-trails",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -38,6 +38,23 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Stack My Trails reads your workout routes to visualize them on the map",
+          "NSHealthUpdateUsageDescription": false,
+          "background": false
+        }
+      ],
+      "expo-sqlite",
+      "@react-native-community/datetimepicker",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Stack My Trails to save poster images to your photo library",
+          "savePhotosPermission": "Allow Stack My Trails to save poster images to your photo library"
         }
       ]
     ],
