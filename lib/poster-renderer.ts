@@ -164,7 +164,7 @@ export function cropRegionToAspect(
 // Coordinate → canvas transformation
 // ---------------------------------------------------------------------------
 
-interface Transform {
+export interface Transform {
   toCanvas: (lat: number, lng: number) => { x: number; y: number };
   canvasWidth: number;
   canvasHeight: number;
@@ -173,6 +173,7 @@ interface Transform {
 /**
  * Build a coordinate transformer from GPS space to canvas pixel space.
  * Uses Web Mercator projection (matching Maps) for Y-axis.
+ * Works for north-up maps only. For rotated maps, use buildAffineTransform.
  */
 export function buildTransform(
   trails: Trail[],
@@ -238,6 +239,86 @@ export function buildTransform(
   };
 }
 
+/**
+ * Build a coordinate transformer by calibrating against the MapView's own
+ * projection via pointForCoordinate(). Works for any rotation/zoom/pan.
+ *
+ * Takes 3 GPS reference points and their screen positions (from
+ * MapView.pointForCoordinate), solves an affine transform using Mercator Y.
+ */
+export interface AffineRefData {
+  geoPoints: Array<{ latitude: number; longitude: number }>;
+  screenPoints: Array<{ x: number; y: number }>;
+}
+
+export function buildAffineTransform(
+  ref: AffineRefData,
+  canvasWidth: number,
+  canvasHeight: number,
+): Transform {
+  const [g0, g1, g2] = ref.geoPoints;
+  const [s0, s1, s2] = ref.screenPoints;
+
+  const my0 = latToMercatorY(g0.latitude);
+  const my1 = latToMercatorY(g1.latitude);
+  const my2 = latToMercatorY(g2.latitude);
+
+  // Solve: screenX = a*mercY + b*lng + tx  (and same for screenY)
+  const det =
+    my0 * (g1.longitude - g2.longitude) -
+    g0.longitude * (my1 - my2) +
+    (my1 * g2.longitude - my2 * g1.longitude);
+
+  if (Math.abs(det) < 1e-12) {
+    return {
+      toCanvas: () => ({ x: canvasWidth / 2, y: canvasHeight / 2 }),
+      canvasWidth,
+      canvasHeight,
+    };
+  }
+
+  const a =
+    (s0.x * (g1.longitude - g2.longitude) -
+      g0.longitude * (s1.x - s2.x) +
+      (s1.x * g2.longitude - s2.x * g1.longitude)) /
+    det;
+  const b =
+    (my0 * (s1.x - s2.x) -
+      s0.x * (my1 - my2) +
+      (my1 * s2.x - my2 * s1.x)) /
+    det;
+  const tx =
+    (my0 * (g1.longitude * s2.x - g2.longitude * s1.x) -
+      g0.longitude * (my1 * s2.x - my2 * s1.x) +
+      s0.x * (my1 * g2.longitude - my2 * g1.longitude)) /
+    det;
+
+  const c =
+    (s0.y * (g1.longitude - g2.longitude) -
+      g0.longitude * (s1.y - s2.y) +
+      (s1.y * g2.longitude - s2.y * g1.longitude)) /
+    det;
+  const d =
+    (my0 * (s1.y - s2.y) -
+      s0.y * (my1 - my2) +
+      (my1 * s2.y - my2 * s1.y)) /
+    det;
+  const ty =
+    (my0 * (g1.longitude * s2.y - g2.longitude * s1.y) -
+      g0.longitude * (my1 * s2.y - my2 * s1.y) +
+      s0.y * (my1 * g2.longitude - my2 * g1.longitude)) /
+    det;
+
+  return {
+    toCanvas: (lat: number, lng: number) => {
+      const my = latToMercatorY(lat);
+      return { x: a * my + b * lng + tx, y: c * my + d * lng + ty };
+    },
+    canvasWidth,
+    canvasHeight,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Build Skia paths from trails
 // ---------------------------------------------------------------------------
@@ -283,7 +364,6 @@ export interface PosterOptions {
   showLabel: boolean;
   showBorder: boolean;
   labelText: string;
-  heading?: number;
 }
 
 export function drawPoster(
@@ -293,24 +373,11 @@ export function drawPoster(
   paths: SkPath[],
   options: PosterOptions,
 ) {
-  const {
-    theme,
-    strokeWidth,
-    opacity,
-    showLabel,
-    labelText,
-    heading = 0,
-  } = options;
+  const { theme, strokeWidth, opacity, showLabel, labelText } = options;
   const hasLabel = showLabel && !!labelText;
 
   // Smooth sharp GPS corners with circular arcs
   const cornerEffect = Skia.PathEffect.MakeCorner(strokeWidth * 1.5);
-
-  // Rotate canvas for trail drawing to match MapView heading
-  if (heading !== 0) {
-    canvas.save();
-    canvas.rotate(-heading, width / 2, height / 2);
-  }
 
   // 1. Glow pass (Noir only)
   if (theme.glow && theme.glowSigma > 0) {
@@ -363,11 +430,6 @@ export function drawPoster(
 
   for (const path of paths) {
     canvas.drawPath(path, corePaint);
-  }
-
-  // Restore canvas rotation so border/label draw north-up
-  if (heading !== 0) {
-    canvas.restore();
   }
 
   // 3. Decorative border with solid margin fill (drawn before label so label sits on top)
@@ -476,7 +538,7 @@ export const EXPORT_HEIGHT = 4000;
  * Draw poster label text using Skia Paragraph API.
  * Renders at full export resolution (no bitmap upscaling).
  */
-function drawPosterLabel(
+export function drawPosterLabel(
   canvas: SkCanvas,
   width: number,
   height: number,
@@ -528,6 +590,7 @@ export function renderHighResPoster(
   showMap: boolean,
   mapImage: SkImage | null,
   labelTypeface: SkTypeface | null,
+  customTransform?: Transform | null,
 ): string | null {
   const w = EXPORT_WIDTH;
   const h = EXPORT_HEIGHT;
@@ -561,9 +624,14 @@ export function renderHighResPoster(
   }
 
   // 2. Build paths at export resolution
-  const padding = showMap ? 0 : 0.04;
-  const transform = buildTransform(trails, w, h, visibleRegion, padding);
-  const paths = buildTrailPaths(trails, transform);
+  let paths: SkPath[];
+  if (customTransform) {
+    paths = buildTrailPaths(trails, customTransform);
+  } else {
+    const padding = showMap ? 0 : 0.04;
+    const transform = buildTransform(trails, w, h, visibleRegion, padding);
+    paths = buildTrailPaths(trails, transform);
+  }
 
   // 3. Draw trails, border, gradient — scale stroke and glow proportionally
   const scaledTheme: PosterTheme = {

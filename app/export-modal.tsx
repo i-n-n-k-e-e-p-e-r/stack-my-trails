@@ -15,7 +15,7 @@ import {
   ActivityIndicator,
   Share,
 } from "react-native";
-import MapView, { type LatLng, type Region } from "react-native-maps";
+import MapView, { Polyline, type Region } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -34,15 +34,20 @@ import { Feather } from "@expo/vector-icons";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { getExportData, clearExportData } from "@/lib/export-store";
-import { computeBoundingBox } from "@/lib/geo";
+import { computeBoundingBox, smoothCoordinates } from "@/lib/geo";
 import {
   POSTER_THEMES,
   buildTransform,
+  buildAffineTransform,
   buildTrailPaths,
   drawPoster,
   cropRegionToAspect,
   renderHighResPoster,
+  EXPORT_WIDTH,
+  EXPORT_HEIGHT,
   type PosterTheme,
+  type AffineRefData,
+  type Transform,
 } from "@/lib/poster-renderer";
 import {
   getExportSettings,
@@ -252,18 +257,40 @@ export default function ExportModal() {
   }, [containerSize]);
   const canvasHeight = canvasWidth / CANVAS_ASPECT;
 
-  // Exact map bounds for pixel-perfect alignment
-  const [posterBounds, setPosterBounds] = useState<{
-    northEast: LatLng;
-    southWest: LatLng;
-  } | null>(null);
+  // Framing state: true when user is interacting with the map
+  const [framing, setFraming] = useState(false);
+  const [referenceData, setReferenceData] = useState<AffineRefData | null>(
+    null,
+  );
 
+  // Compute reference points from MapView for affine transform calibration
   const handleMapRegionChange = useCallback(async () => {
-    if (!posterMapRef.current) return;
+    if (!posterMapRef.current) {
+      setFraming(false);
+      return;
+    }
     try {
       const bounds = await posterMapRef.current.getMapBoundaries();
-      setPosterBounds(bounds);
+      const geoPoints = [
+        {
+          latitude: bounds.southWest.latitude,
+          longitude: bounds.southWest.longitude,
+        },
+        {
+          latitude: bounds.northEast.latitude,
+          longitude: bounds.northEast.longitude,
+        },
+        {
+          latitude: bounds.southWest.latitude,
+          longitude: bounds.northEast.longitude,
+        },
+      ];
+      const screenPoints = await Promise.all(
+        geoPoints.map((gp) => posterMapRef.current!.pointForCoordinate(gp)),
+      );
+      setReferenceData({ geoPoints, screenPoints });
     } catch {}
+    setFraming(false);
   }, []);
 
   // Crop the Stack screen region to poster 3:4 aspect ratio
@@ -289,54 +316,60 @@ export default function ExportModal() {
 
   useEffect(() => clearExportData, []);
 
-  // Apply heading to poster MapView once the map has settled on the correct region
+  // Recalibrate transform when map visibility toggles
+  useEffect(() => {
+    setFraming(false);
+    handleMapRegionChange();
+  }, [showMap, handleMapRegionChange]);
+
   const handleMapReady = useCallback(() => {
-    if (!posterMapRef.current || heading === 0) return;
-    posterMapRef.current
-      .getCamera()
-      .then((cam) => {
-        posterMapRef.current?.setCamera({ ...cam, heading });
-      })
-      .catch(() => {});
-  }, [heading]);
-
-  const transformRegion = useMemo((): Region | null => {
-    if (posterBounds) {
-      return {
-        latitude:
-          (posterBounds.northEast.latitude + posterBounds.southWest.latitude) /
-          2,
-        longitude:
-          (posterBounds.northEast.longitude +
-            posterBounds.southWest.longitude) /
-          2,
-        latitudeDelta:
-          posterBounds.northEast.latitude - posterBounds.southWest.latitude,
-        longitudeDelta:
-          posterBounds.northEast.longitude - posterBounds.southWest.longitude,
-      };
+    if (posterMapRef.current && heading !== 0) {
+      posterMapRef.current
+        .getCamera()
+        .then((cam) => {
+          posterMapRef.current?.setCamera({ ...cam, heading });
+        })
+        .catch(() => {});
     }
-    return initialMapRegion ?? visibleRegion;
-  }, [posterBounds, initialMapRegion, visibleRegion]);
+    // Safety net: compute reference points after map settles
+    setTimeout(handleMapRegionChange, 400);
+  }, [heading, handleMapRegionChange]);
 
+  // Build paths using affine transform (handles rotation) or Mercator fallback
   const paths: SkPath[] = useMemo(() => {
     if (canvasWidth === 0 || trails.length === 0) return [];
-    const padding = showMap ? 0 : 0.04;
-    const transform = buildTransform(
-      trails,
-      canvasWidth,
-      canvasHeight,
-      transformRegion,
-      padding,
-    );
+    let transform: Transform;
+    if (referenceData) {
+      transform = buildAffineTransform(
+        referenceData,
+        canvasWidth,
+        canvasHeight,
+      );
+    } else {
+      const padding = showMap ? 0 : 0.04;
+      transform = buildTransform(
+        trails,
+        canvasWidth,
+        canvasHeight,
+        initialMapRegion ?? visibleRegion ?? null,
+        padding,
+      );
+    }
     return buildTrailPaths(trails, transform);
-  }, [canvasWidth, canvasHeight, trails, transformRegion, showMap]);
+  }, [
+    canvasWidth,
+    canvasHeight,
+    trails,
+    referenceData,
+    showMap,
+    initialMapRegion,
+    visibleRegion,
+  ]);
 
   const picture = useMemo(() => {
     if (paths.length === 0 || canvasWidth === 0) return null;
     const w = canvasWidth;
     const h = canvasHeight;
-    const hdg = heading;
     return createPicture(
       (canvas) => {
         drawPoster(canvas, w, h, paths, {
@@ -346,7 +379,6 @@ export default function ExportModal() {
           showLabel,
           showBorder,
           labelText,
-          heading: hdg,
         });
       },
       { width: w, height: h },
@@ -361,7 +393,6 @@ export default function ExportModal() {
     showLabel,
     showBorder,
     labelText,
-    heading,
   ]);
 
   const captureHighRes = useCallback(async (): Promise<string | null> => {
@@ -383,10 +414,29 @@ export default function ExportModal() {
       }
     }
 
+    // Scale affine reference points to export resolution
+    let customTransform: Transform | null = null;
+    if (referenceData) {
+      const scaleX = EXPORT_WIDTH / canvasWidth;
+      const scaleY = EXPORT_HEIGHT / canvasHeight;
+      const scaledRef: AffineRefData = {
+        geoPoints: referenceData.geoPoints,
+        screenPoints: referenceData.screenPoints.map((p) => ({
+          x: p.x * scaleX,
+          y: p.y * scaleY,
+        })),
+      };
+      customTransform = buildAffineTransform(
+        scaledRef,
+        EXPORT_WIDTH,
+        EXPORT_HEIGHT,
+      );
+    }
+
     // Render everything at high resolution via offscreen Skia surface
     const base64 = renderHighResPoster(
       trails,
-      transformRegion,
+      initialMapRegion ?? visibleRegion ?? null,
       {
         theme: adjustedTheme,
         strokeWidth,
@@ -394,12 +444,12 @@ export default function ExportModal() {
         showLabel,
         showBorder,
         labelText,
-        heading,
       },
       canvasWidth,
       showMap,
       mapImage,
       labelTypeface,
+      customTransform,
     );
     if (!base64) return null;
 
@@ -411,7 +461,9 @@ export default function ExportModal() {
     canvasWidth,
     trails,
     showMap,
-    transformRegion,
+    referenceData,
+    initialMapRegion,
+    visibleRegion,
     adjustedTheme,
     strokeWidth,
     opacity,
@@ -419,7 +471,6 @@ export default function ExportModal() {
     showBorder,
     labelText,
     labelTypeface,
-    heading,
   ]);
 
   const handleSave = useCallback(async () => {
@@ -510,61 +561,70 @@ export default function ExportModal() {
             options={{ format: "png", quality: 1 }}
             style={{ width: canvasWidth, height: canvasHeight }}
           >
-            {showMap ? (
-              <>
-                <MapView
-                  ref={posterMapRef}
-                  style={StyleSheet.absoluteFill}
-                  initialRegion={initialMapRegion}
-                  mapType="mutedStandard"
-                  userInterfaceStyle={adjustedTheme.mapStyle}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                  rotateEnabled={false}
-                  pitchEnabled={false}
-                  showsCompass={false}
-                  showsScale={false}
-                  showsPointsOfInterest={false}
-                  showsBuildings={false}
-                  showsUserLocation={false}
-                  showsTraffic={false}
-                  showsIndoors={false}
-                  onMapReady={handleMapReady}
-                  onRegionChangeComplete={handleMapRegionChange}
-                />
-                {adjustedTheme.tintOpacity > 0 && (
-                  <View
-                    style={[
-                      StyleSheet.absoluteFill,
-                      {
-                        backgroundColor: adjustedTheme.tintColor,
-                        opacity: adjustedTheme.tintOpacity,
-                      },
-                    ]}
+            <MapView
+              ref={posterMapRef}
+              style={StyleSheet.absoluteFill}
+              initialRegion={initialMapRegion}
+              mapType="mutedStandard"
+              userInterfaceStyle={adjustedTheme.mapStyle}
+              scrollEnabled={true}
+              zoomEnabled={true}
+              rotateEnabled={true}
+              pitchEnabled={false}
+              showsCompass={false}
+              showsScale={false}
+              showsPointsOfInterest={false}
+              showsBuildings={false}
+              showsUserLocation={false}
+              showsTraffic={false}
+              showsIndoors={false}
+              onMapReady={handleMapReady}
+              onPanDrag={() => setFraming(true)}
+              onRegionChangeComplete={handleMapRegionChange}
+            >
+              {framing &&
+                trails.map((trail) => (
+                  <Polyline
+                    key={trail.workoutId}
+                    coordinates={smoothCoordinates(trail.coordinates)}
+                    strokeColor={adjustedTheme.trailColor}
+                    strokeWidth={2}
+                    lineCap="round"
+                    lineJoin="round"
                   />
-                )}
-              </>
-            ) : (
-              <View
-                style={[
-                  StyleSheet.absoluteFill,
-                  { backgroundColor: adjustedTheme.tintColor },
-                ]}
-              />
-            )}
-
-            <Canvas
-              opaque={false}
+                ))}
+            </MapView>
+            <View
+              pointerEvents="none"
               style={[
                 StyleSheet.absoluteFill,
-                { backgroundColor: "transparent" },
+                {
+                  backgroundColor: adjustedTheme.tintColor,
+                  opacity: framing
+                    ? Math.min(adjustedTheme.tintOpacity, 0.2)
+                    : showMap
+                      ? adjustedTheme.tintOpacity
+                      : 1,
+                },
               ]}
-            >
-              {picture && <Picture picture={picture} />}
-            </Canvas>
+            />
+
+            {!framing && (
+              <Canvas
+                opaque={false}
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  { backgroundColor: "transparent" },
+                ]}
+              >
+                {picture && <Picture picture={picture} />}
+              </Canvas>
+            )}
 
             {showLabel && labelText ? (
               <View
+                pointerEvents="none"
                 style={[
                   styles.posterLabelArea,
                   {

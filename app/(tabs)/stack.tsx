@@ -99,7 +99,10 @@ export default function StackScreen() {
       ]);
       const loop = Animated.loop(ring);
       loop.start();
-      return () => loop.stop();
+      return () => {
+        loop.stop();
+        shakeAnim.setValue(0);
+      };
     } else {
       shakeAnim.setValue(0);
     }

@@ -238,6 +238,24 @@ export default function FilterModal() {
     );
   };
 
+  const handleRenameGroup = (group: AreaGroup) => {
+    Alert.prompt("Rename Group", `Current: "${group.label}"`, async (newName) => {
+      if (!newName || newName.trim() === "" || newName.trim() === group.label) return;
+      const trimmed = newName.trim();
+      for (const oldLabel of group.allLabels) {
+        const locality = extractLocality(oldLabel);
+        const city = extractCity(oldLabel);
+        const newLabel = locality === city ? trimmed : `${locality}, ${trimmed}`;
+        await renameTrailLabel(db, oldLabel, newLabel);
+      }
+      if (selectedLabels.some((l) => group.allLabels.includes(l))) {
+        setSelectedLabels([]);
+        setSelectedDisplayLabel("");
+      }
+      await reloadAreas();
+    }, "plain-text", group.label);
+  };
+
   const getActivePreset = () => {
     // Check if "All" preset is active by comparing with database date range
     if (dbDateRange) {
@@ -510,18 +528,10 @@ export default function FilterModal() {
         </View>
 
         {/* Activities section */}
-        <View style={styles.sectionLabelRow}>
-          <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginBottom: 0, marginTop: 0 }]}>
-            ACTIVITIES
-          </Text>
-          <Feather name="chevrons-right" size={12} color={colors.textSecondary} />
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.activityScroll}
-          contentContainerStyle={styles.activityScrollContent}
-        >
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          ACTIVITIES
+        </Text>
+        <View style={styles.activityWrap}>
           {ACTIVITIES.map((act) => {
             const isActive = selectedActivities.includes(act.type);
             return (
@@ -549,7 +559,7 @@ export default function FilterModal() {
               </TouchableOpacity>
             );
           })}
-        </ScrollView>
+        </View>
 
         {/* Areas section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
@@ -779,7 +789,7 @@ export default function FilterModal() {
                       </Text>
                       <TouchableOpacity
                         onPress={() =>
-                          handleRenameLabel(group.allLabels, group.label)
+                          handleRenameGroup(group)
                         }
                         hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                         style={styles.editButton}
@@ -958,23 +968,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 8,
   },
-  sectionLabelRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 12,
-    marginTop: 8,
-  },
   presetRow: {
     flexDirection: "row",
     gap: 8,
     marginBottom: 16,
   },
-  activityScroll: {
-    marginBottom: 16,
-  },
-  activityScrollContent: {
+  activityWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
+    marginBottom: 16,
   },
   presetChip: {
     paddingHorizontal: 14,
@@ -999,7 +1002,7 @@ const styles = StyleSheet.create({
   },
   datePickerCol: {
     flex: 1,
-    alignItems: "center",
+    alignItems: "flex-start",
     gap: 4,
     transform: [{ scale: 0.85 }],
   },
