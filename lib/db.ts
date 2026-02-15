@@ -171,14 +171,17 @@ export async function getTrailSummaries(
   db: SQLiteDatabase,
   startDate: Date,
   endDate: Date,
+  activityTypes?: number[] | null,
 ): Promise<TrailSummary[]> {
-  const rows = await db.getAllAsync<SummaryRow>(
-    `SELECT ${SUMMARY_COLS} FROM trails
-     WHERE start_date >= ? AND start_date <= ?
-     ORDER BY start_date DESC`,
-    startDate.toISOString(),
-    endDate.toISOString(),
-  );
+  const params: (string | number)[] = [startDate.toISOString(), endDate.toISOString()];
+  let query = `SELECT ${SUMMARY_COLS} FROM trails
+     WHERE start_date >= ? AND start_date <= ?`;
+  if (activityTypes && activityTypes.length > 0) {
+    query += ` AND activity_type IN (${activityTypes.map(() => '?').join(',')})`;
+    params.push(...activityTypes);
+  }
+  query += ` ORDER BY start_date DESC`;
+  const rows = await db.getAllAsync<SummaryRow>(query, ...params);
   return rows.map(rowToSummary);
 }
 
@@ -207,18 +210,19 @@ export async function getTrailSummariesByLabels(
   startDate: Date,
   endDate: Date,
   labels: string[],
+  activityTypes?: number[] | null,
 ): Promise<TrailSummary[]> {
   if (labels.length === 0) return [];
-  const placeholders = labels.map(() => '?').join(',');
-  const rows = await db.getAllAsync<SummaryRow>(
-    `SELECT ${SUMMARY_COLS} FROM trails
+  const params: (string | number)[] = [startDate.toISOString(), endDate.toISOString(), ...labels];
+  let query = `SELECT ${SUMMARY_COLS} FROM trails
      WHERE start_date >= ? AND start_date <= ?
-       AND location_label IN (${placeholders})
-     ORDER BY start_date DESC`,
-    startDate.toISOString(),
-    endDate.toISOString(),
-    ...labels,
-  );
+       AND location_label IN (${labels.map(() => '?').join(',')})`;
+  if (activityTypes && activityTypes.length > 0) {
+    query += ` AND activity_type IN (${activityTypes.map(() => '?').join(',')})`;
+    params.push(...activityTypes);
+  }
+  query += ` ORDER BY start_date DESC`;
+  const rows = await db.getAllAsync<SummaryRow>(query, ...params);
   return rows.map(rowToSummary);
 }
 

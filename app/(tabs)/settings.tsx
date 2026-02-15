@@ -68,6 +68,7 @@ export default function SettingsScreen() {
   const [dataExporting, setDataExporting] = useState(false);
   const [dataImporting, setDataImporting] = useState(false);
   const [showLocation, setShowLocation] = useState(false);
+  const [gpsFilter, setGpsFilter] = useState(true);
 
   const refreshStats = useCallback(() => {
     getTrailCount(db).then(setTrailCount);
@@ -78,6 +79,9 @@ export default function SettingsScreen() {
     refreshStats();
     getSetting(db, "showLocation")
       .then((v) => setShowLocation(v === "true"))
+      .catch(() => {});
+    getSetting(db, "gpsFilter")
+      .then((v) => setGpsFilter(v !== "false"))
       .catch(() => {});
   }, [refreshStats, importing, deleting, db]);
 
@@ -109,6 +113,14 @@ export default function SettingsScreen() {
       }
       setShowLocation(value);
       setSetting(db, "showLocation", value ? "true" : "false").catch(() => {});
+    },
+    [db],
+  );
+
+  const handleToggleGpsFilter = useCallback(
+    (value: boolean) => {
+      setGpsFilter(value);
+      setSetting(db, "gpsFilter", value ? "true" : "false").catch(() => {});
     },
     [db],
   );
@@ -201,7 +213,7 @@ export default function SettingsScreen() {
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{
-          paddingBottom: 100,
+          paddingBottom: 140,
         }}
       >
         {/* Appearance section */}
@@ -298,6 +310,30 @@ export default function SettingsScreen() {
               {lastImport ? formatRelativeDate(lastImport) : "Never"}
             </Text>
           </View>
+        </View>
+
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+            },
+          ]}
+        >
+          <Text style={[styles.switchLabel, { color: colors.text }]}>
+            GPS Spoofing Filter
+          </Text>
+          <Switch
+            value={gpsFilter}
+            onValueChange={handleToggleGpsFilter}
+            trackColor={{ true: colors.accent }}
+          />
         </View>
 
         {/* Import progress */}

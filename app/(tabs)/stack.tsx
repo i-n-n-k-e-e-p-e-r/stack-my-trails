@@ -62,7 +62,7 @@ export default function StackScreen() {
   );
 
   const filters = useSyncExternalStore(subscribeFilters, getFilters);
-  const { startDate, endDate, areaLabels: filterLabels, areaLabel } = filters;
+  const { startDate, endDate, areaLabels: filterLabels, areaLabel, activityTypes } = filters;
   const filtersActive = hasActiveFilters();
 
   // "Ring the bell" nudge animation for filter button when no area selected
@@ -109,6 +109,7 @@ export default function StackScreen() {
     startDate,
     endDate,
     labels: filterLabels ?? [],
+    activityTypes,
   });
 
   const selectedCluster = useMemo(
@@ -241,7 +242,7 @@ export default function StackScreen() {
         showsBuildings={false}
         pitchEnabled={false}
         showsUserLocation={showLocation}
-        legalLabelInsets={{ top: 0, left: 0, bottom: 10, right: 10 }}
+        legalLabelInsets={{ top: 0, left: 0, bottom: 0, right: 0 }}
         onRegionChangeComplete={setMapRegion}
       >
         {renderedTrails.map((trail) => (

@@ -22,6 +22,7 @@ interface UseTrailsOptions {
   startDate: Date;
   endDate: Date;
   labels?: string[] | null;
+  activityTypes?: number[] | null;
 }
 
 interface UseTrailsResult {
@@ -37,6 +38,7 @@ export function useTrails({
   startDate,
   endDate,
   labels,
+  activityTypes,
 }: UseTrailsOptions): UseTrailsResult {
   const db = useSQLiteContext();
   const [clusters, setClusters] = useState<TrailCluster[]>([]);
@@ -47,6 +49,7 @@ export function useTrails({
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const labelsKey = labels ? labels.join("\0") : "";
+  const activityKey = activityTypes ? activityTypes.join(",") : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -58,9 +61,9 @@ export function useTrails({
       try {
         const summaries = labels
           ? labels.length > 0
-            ? await getTrailSummariesByLabels(db, startDate, endDate, labels)
+            ? await getTrailSummariesByLabels(db, startDate, endDate, labels, activityTypes)
             : [] // Empty labels array = no trails (no area selected)
-          : await getTrailSummaries(db, startDate, endDate);
+          : await getTrailSummaries(db, startDate, endDate, activityTypes);
         if (cancelled) return;
 
         if (labels && labels.length > 0) {
@@ -97,7 +100,7 @@ export function useTrails({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, startDate.getTime(), endDate.getTime(), labelsKey, refreshKey]);
+  }, [db, startDate.getTime(), endDate.getTime(), labelsKey, activityKey, refreshKey]);
 
   const loadClusterTrails = useCallback(
     async (cluster: TrailCluster): Promise<Trail[]> => {

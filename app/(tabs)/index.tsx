@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   PanResponder,
   useWindowDimensions,
+  ScrollView,
 } from "react-native";
 import MapView, { Polyline } from "react-native-maps";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,6 +36,14 @@ const ACTIVITY_ICONS: Record<number, string> = {
   46: "\u{1F3CA}",
   52: "\u{1F6B6}",
 };
+
+const ACTIVITIES = [
+  { type: 37, label: "Run" },
+  { type: 52, label: "Walk" },
+  { type: 13, label: "Cycle" },
+  { type: 24, label: "Hike" },
+  { type: 46, label: "Swim" },
+] as const;
 
 function formatDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -67,6 +76,7 @@ export default function TrailsScreen() {
 
   const [trails, setTrails] = useState<TrailSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedActivities, setSelectedActivities] = useState<number[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCoords, setSelectedCoords] = useState<Coordinate[]>([]);
   const [labels, setLabels] = useState<Map<string, string>>(new Map());
@@ -103,6 +113,17 @@ export default function TrailsScreen() {
       },
     }),
   ).current;
+
+  const toggleActivity = useCallback((type: number) => {
+    setSelectedActivities((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+    );
+  }, []);
+
+  const filteredTrails = useMemo(() => {
+    if (selectedActivities.length === 0) return trails;
+    return trails.filter((t) => selectedActivities.includes(t.activityType));
+  }, [trails, selectedActivities]);
 
   useFocusEffect(
     useCallback(() => {
@@ -345,20 +366,61 @@ export default function TrailsScreen() {
             YOUR TRAILS
           </Text>
           <Text style={[styles.listCount, { color: colors.textSecondary }]}>
-            {trails.length}
+            {filteredTrails.length}
           </Text>
         </View>
-        <FlatList
-          data={trails}
-          keyExtractor={(item) => item.workoutId}
-          renderItem={renderItem}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingBottom: insets.bottom + 80,
-            gap: 12,
-          }}
-          showsVerticalScrollIndicator={false}
-        />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.activityScroll}
+          contentContainerStyle={styles.activityScrollContent}
+        >
+          {ACTIVITIES.map((act) => {
+            const isActive = selectedActivities.includes(act.type);
+            return (
+              <TouchableOpacity
+                key={act.type}
+                style={[
+                  styles.activityChip,
+                  {
+                    backgroundColor: isActive ? colors.accent : "transparent",
+                    borderColor: isActive
+                      ? colors.activeSelectionBorder
+                      : colors.border,
+                  },
+                ]}
+                onPress={() => toggleActivity(act.type)}
+              >
+                <Text
+                  style={[styles.activityChipText, { color: colors.text }]}
+                >
+                  {act.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+        {filteredTrails.length === 0 ? (
+          <View style={styles.emptyFilter}>
+            <Text
+              style={[styles.emptyFilterText, { color: colors.textSecondary }]}
+            >
+              No trails match the selected activities
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredTrails}
+            keyExtractor={(item) => item.workoutId}
+            renderItem={renderItem}
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingBottom: insets.bottom + 80,
+              gap: 12,
+            }}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
       </View>
     </View>
   );
@@ -435,6 +497,36 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.medium,
     fontSize: 11,
     letterSpacing: 1.5,
+  },
+  activityScroll: {
+    flexGrow: 0,
+    flexShrink: 0,
+    paddingBottom: 12,
+  },
+  activityScrollContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  activityChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 2,
+  },
+  activityChipText: {
+    fontFamily: Fonts.semibold,
+    fontSize: 13,
+  },
+  emptyFilter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  emptyFilterText: {
+    fontFamily: Fonts.regular,
+    fontSize: 14,
+    textAlign: "center",
   },
   trailCard: {
     borderRadius: 32,

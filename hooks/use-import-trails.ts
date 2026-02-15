@@ -6,7 +6,7 @@ import {
 } from '@kingstinct/react-native-healthkit';
 import { WorkoutActivityType } from '@kingstinct/react-native-healthkit/types';
 import { computeBoundingBox, filterGpsOutliers, simplifyCoordinates, bboxCenter, type TimedCoordinate } from '@/lib/geo';
-import { upsertTrail } from '@/lib/db';
+import { upsertTrail, getSetting } from '@/lib/db';
 import { resolveLabel } from '@/lib/geocode';
 
 const ACTIVITY_TYPES = [
@@ -41,6 +41,9 @@ export function useImportTrails(): UseImportTrailsResult {
     setError(null);
 
     try {
+      const gpsFilterSetting = await getSetting(db, "gpsFilter").catch(() => null);
+      const useGpsFilter = gpsFilterSetting !== "false";
+
       await requestAuthorization({
         toRead: ['HKWorkoutTypeIdentifier', 'HKWorkoutRouteTypeIdentifier'],
       });
@@ -69,8 +72,10 @@ export function useImportTrails(): UseImportTrailsResult {
               timestamp: loc.date.getTime(),
             }));
 
-            // Remove GPS spoofing outliers, then simplify
-            const cleaned = filterGpsOutliers(timedCoords);
+            // Remove GPS spoofing outliers (if enabled), then simplify
+            const cleaned = useGpsFilter
+              ? filterGpsOutliers(timedCoords)
+              : timedCoords.map(({ latitude, longitude }) => ({ latitude, longitude }));
             if (cleaned.length < 2) continue;
             const coordinates = simplifyCoordinates(cleaned, 0.00005);
 

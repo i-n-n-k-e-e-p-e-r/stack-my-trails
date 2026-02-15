@@ -5,6 +5,7 @@ export interface FilterState {
   endDate: Date;
   areaLabels: string[] | null;
   areaLabel: string | null;
+  activityTypes: number[] | null;
 }
 
 // Default: 1 year date range, no area selected (= no trails shown)
@@ -12,7 +13,7 @@ function defaultState(): FilterState {
   const end = new Date();
   const start = new Date();
   start.setFullYear(start.getFullYear() - 1);
-  return { startDate: start, endDate: end, areaLabels: null, areaLabel: null };
+  return { startDate: start, endDate: end, areaLabels: null, areaLabel: null, activityTypes: null };
 }
 
 let _state: FilterState = defaultState();

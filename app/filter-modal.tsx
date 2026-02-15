@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   StyleSheet,
   View,
@@ -9,6 +9,7 @@ import {
   Alert,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
@@ -28,6 +29,14 @@ const PRESETS = [
   { label: "1M", days: 30 },
   { label: "1Y", days: 365 },
   { label: "All", days: 3650 },
+] as const;
+
+const ACTIVITIES = [
+  { type: 37, label: "Run" },
+  { type: 52, label: "Walk" },
+  { type: 13, label: "Cycle" },
+  { type: 24, label: "Hike" },
+  { type: 46, label: "Swim" },
 ] as const;
 
 interface SubArea {
@@ -116,7 +125,10 @@ export default function FilterModal() {
   const [selectedDisplayLabel, setSelectedDisplayLabel] = useState<string>(
     currentFilters.areaLabel ?? "",
   );
-  const [areaGroups, setAreaGroups] = useState<AreaGroup[]>([]);
+  const [selectedActivities, setSelectedActivities] = useState<number[]>(
+    currentFilters.activityTypes ?? [],
+  );
+  const [allSummaries, setAllSummaries] = useState<TrailSummary[]>([]);
   const [loadingAreas, setLoadingAreas] = useState(true);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   const [dbDateRange, setDbDateRange] = useState<{
@@ -124,43 +136,68 @@ export default function FilterModal() {
     maxDate: Date;
   } | null>(null);
 
+  const areaGroups = useMemo(() => {
+    let filtered = allSummaries;
+    filtered = filtered.filter((s) => {
+      const d = new Date(s.startDate);
+      return d >= startDate && d <= endDate;
+    });
+    if (selectedActivities.length > 0) {
+      filtered = filtered.filter((s) =>
+        selectedActivities.includes(s.activityType),
+      );
+    }
+    return buildAreaGroups(filtered);
+  }, [allSummaries, startDate, endDate, selectedActivities]);
+
   const reloadAreas = async () => {
     const summaries = await getAllTrailSummaries(db);
-    const groups = buildAreaGroups(summaries);
-    setAreaGroups(groups);
+    setAllSummaries(summaries);
     setLoadingAreas(false);
-    return groups;
   };
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadAreas() {
-      const groups = await reloadAreas();
+      const summaries = await getAllTrailSummaries(db);
       const dateRange = await getTrailDateRange(db);
       if (cancelled) return;
 
+      setAllSummaries(summaries);
       setDbDateRange(dateRange);
-
-      if (selectedLabels.length > 0) {
-        for (let i = 0; i < groups.length; i++) {
-          const hasMatch = groups[i].allLabels.some((l) =>
-            selectedLabels.includes(l),
-          );
-          if (hasMatch) {
-            setExpandedGroups(new Set([i]));
-            break;
-          }
-        }
-      }
+      setLoadingAreas(false);
     }
 
     loadAreas();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [db]);
+
+  // Auto-expand group with selected labels on initial load
+  useEffect(() => {
+    if (loadingAreas || selectedLabels.length === 0) return;
+    for (let i = 0; i < areaGroups.length; i++) {
+      if (areaGroups[i].allLabels.some((l) => selectedLabels.includes(l))) {
+        setExpandedGroups(new Set([i]));
+        break;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingAreas]);
+
+  const doRename = async (labels: string[], newLabel: string) => {
+    for (const oldLabel of labels) {
+      await renameTrailLabel(db, oldLabel, newLabel);
+    }
+    const affected = selectedLabels.some((l) => labels.includes(l));
+    if (affected) {
+      setSelectedLabels([newLabel]);
+      setSelectedDisplayLabel(newLabel);
+    }
+    await reloadAreas();
+  };
 
   const handleRenameLabel = (labels: string[], currentDisplay: string) => {
     Alert.prompt(
@@ -174,16 +211,27 @@ export default function FilterModal() {
         )
           return;
         const trimmed = newName.trim();
-        for (const oldLabel of labels) {
-          await renameTrailLabel(db, oldLabel, trimmed);
+
+        // Check if this label already exists
+        const existingLabels = areaGroups.flatMap((g) =>
+          g.subAreas.flatMap((s) => s.labels),
+        );
+        const willMerge = existingLabels.some(
+          (l) => l === trimmed && !labels.includes(l),
+        );
+
+        if (willMerge) {
+          Alert.alert(
+            "Merge Areas?",
+            `"${trimmed}" already exists. All workouts will be merged under this label.`,
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Merge", onPress: () => doRename(labels, trimmed) },
+            ],
+          );
+        } else {
+          await doRename(labels, trimmed);
         }
-        // Update selected labels if they were affected
-        const affected = selectedLabels.some((l) => labels.includes(l));
-        if (affected) {
-          setSelectedLabels([trimmed]);
-          setSelectedDisplayLabel(trimmed);
-        }
-        await reloadAreas();
       },
       "plain-text",
       currentDisplay,
@@ -240,12 +288,110 @@ export default function FilterModal() {
     setSelectedDisplayLabel(displayLabel);
   };
 
+  const toggleActivity = (type: number) => {
+    setSelectedActivities((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+    );
+  };
+
+  // Drag and drop: pick up and place
+  const [dragSource, setDragSource] = useState<{
+    groupIdx: number;
+    labels: string[];
+    displayLabel: string;
+  } | null>(null);
+
+  const handleStartDrag = (
+    groupIdx: number,
+    labels: string[],
+    displayLabel: string,
+  ) => {
+    setDragSource({ groupIdx, labels, displayLabel });
+  };
+
+  const handleDropOnGroup = async (targetGroupIdx: number) => {
+    if (!dragSource || targetGroupIdx === dragSource.groupIdx) {
+      setDragSource(null);
+      return;
+    }
+
+    const targetCity = areaGroups[targetGroupIdx].label;
+    const targetAllLabels = areaGroups[targetGroupIdx].allLabels;
+
+    // Check for merges
+    const newLabels = dragSource.labels.map(
+      (l) => `${extractLocality(l)}, ${targetCity}`,
+    );
+    const willMerge = newLabels.some((nl) => targetAllLabels.includes(nl));
+
+    const doMove = async () => {
+      for (const oldLabel of dragSource.labels) {
+        const newLabel = `${extractLocality(oldLabel)}, ${targetCity}`;
+        await renameTrailLabel(db, oldLabel, newLabel);
+      }
+      const affected = selectedLabels.some((l) =>
+        dragSource.labels.includes(l),
+      );
+      if (affected) {
+        setSelectedLabels([]);
+        setSelectedDisplayLabel("");
+      }
+      setDragSource(null);
+      await reloadAreas();
+    };
+
+    if (willMerge) {
+      Alert.alert(
+        "Merge Areas?",
+        `Some areas will merge with existing areas in "${targetCity}". All workouts will be combined.`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => setDragSource(null),
+          },
+          { text: "Merge", onPress: doMove },
+        ],
+      );
+    } else {
+      await doMove();
+    }
+  };
+
+  const handleDropToRoot = async () => {
+    if (!dragSource) return;
+
+    const newLabels: string[] = [];
+    for (const oldLabel of dragSource.labels) {
+      const locality = extractLocality(oldLabel);
+      const city = extractCity(oldLabel);
+      if (locality === city) {
+        // Already at root level, nothing to do
+        newLabels.push(oldLabel);
+        continue;
+      }
+      newLabels.push(locality);
+      await renameTrailLabel(db, oldLabel, locality);
+    }
+
+    const affected = selectedLabels.some((l) =>
+      dragSource.labels.includes(l),
+    );
+    if (affected) {
+      setSelectedLabels(newLabels);
+      setSelectedDisplayLabel(newLabels[0] ?? "");
+    }
+    setDragSource(null);
+    await reloadAreas();
+  };
+
   const handleApply = () => {
     setFilters({
       startDate,
       endDate,
       areaLabels: selectedLabels.length > 0 ? selectedLabels : null,
       areaLabel: selectedDisplayLabel || null,
+      activityTypes: selectedActivities.length > 0 ? selectedActivities : null,
     });
     router.back();
   };
@@ -363,10 +509,99 @@ export default function FilterModal() {
           </View>
         </View>
 
+        {/* Activities section */}
+        <View style={styles.sectionLabelRow}>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginBottom: 0, marginTop: 0 }]}>
+            ACTIVITIES
+          </Text>
+          <Feather name="chevrons-right" size={12} color={colors.textSecondary} />
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.activityScroll}
+          contentContainerStyle={styles.activityScrollContent}
+        >
+          {ACTIVITIES.map((act) => {
+            const isActive = selectedActivities.includes(act.type);
+            return (
+              <TouchableOpacity
+                key={act.type}
+                style={[
+                  styles.presetChip,
+                  {
+                    backgroundColor: isActive ? colors.accent : "transparent",
+                    borderColor: isActive
+                      ? colors.activeSelectionBorder
+                      : colors.border,
+                  },
+                ]}
+                onPress={() => toggleActivity(act.type)}
+              >
+                <Text
+                  style={[
+                    styles.presetText,
+                    { color: colors.text },
+                  ]}
+                >
+                  {act.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
         {/* Areas section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
           AREAS
         </Text>
+
+        {dragSource && (
+          <View style={styles.dragBannerWrap}>
+            <View
+              style={[
+                styles.dragBanner,
+                {
+                  backgroundColor: colors.accent,
+                  borderColor: colors.activeSelectionBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.dragBannerText, { color: colors.text }]}
+                numberOfLines={1}
+              >
+                Move "{dragSource.displayLabel}"
+              </Text>
+              <TouchableOpacity onPress={() => setDragSource(null)}>
+                <Feather name="x" size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.dropRootZone,
+                {
+                  borderColor: colors.border,
+                },
+              ]}
+              onPress={handleDropToRoot}
+            >
+              <Feather
+                name="corner-left-up"
+                size={14}
+                color={colors.textSecondary}
+              />
+              <Text
+                style={[
+                  styles.dropRootText,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Move to top level
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
         {loadingAreas ? (
           <View style={styles.areaLoading}>
             <ActivityIndicator size="small" color={colors.accent} />
@@ -376,8 +611,15 @@ export default function FilterModal() {
               Loading areas...
             </Text>
           </View>
+        ) : areaGroups.length === 0 ? (
+          <View style={styles.areaLoading}>
+            <Text
+              style={[styles.areaLoadingText, { color: colors.textSecondary }]}
+            >
+              No areas match the current filters
+            </Text>
+          </View>
         ) : (
-          areaGroups.length > 0 && (
             <View
               style={[
                 styles.areaCard,
@@ -399,6 +641,10 @@ export default function FilterModal() {
                 if (!hasSubs) {
                   const sub = group.subAreas[0];
                   const isActive = labelsMatch(selectedLabels, sub.labels);
+                  const isDragSource =
+                    dragSource?.groupIdx === gIdx;
+                  const isDropTarget =
+                    dragSource !== null && dragSource.groupIdx !== gIdx;
 
                   return (
                     <TouchableOpacity
@@ -409,10 +655,20 @@ export default function FilterModal() {
                           borderBottomWidth: StyleSheet.hairlineWidth,
                           borderBottomColor: colors.borderLight,
                         },
+                        isDragSource && { opacity: 0.4 },
+                        isDropTarget && {
+                          backgroundColor: `${colors.accent}30`,
+                        },
                       ]}
-                      onPress={() => selectArea(sub.labels, sub.fullLabel)}
+                      onPress={() => {
+                        if (dragSource) {
+                          handleDropOnGroup(gIdx);
+                          return;
+                        }
+                        selectArea(sub.labels, sub.fullLabel);
+                      }}
                       onLongPress={() =>
-                        handleRenameLabel(sub.labels, sub.fullLabel)
+                        handleStartDrag(gIdx, sub.labels, sub.fullLabel)
                       }
                     >
                       <View
@@ -434,6 +690,19 @@ export default function FilterModal() {
                       >
                         {sub.fullLabel}
                       </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleRenameLabel(sub.labels, sub.fullLabel)
+                        }
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                        style={styles.editButton}
+                      >
+                        <Feather
+                          name="edit-3"
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                      </TouchableOpacity>
                       <View
                         style={[
                           styles.countPill,
@@ -450,6 +719,11 @@ export default function FilterModal() {
                   );
                 }
 
+                const isDragSourceGroup =
+                  dragSource?.groupIdx === gIdx;
+                const isDropTargetGroup =
+                  dragSource !== null && dragSource.groupIdx !== gIdx;
+
                 return (
                   <View key={gIdx}>
                     <TouchableOpacity
@@ -460,8 +734,15 @@ export default function FilterModal() {
                             borderBottomWidth: StyleSheet.hairlineWidth,
                             borderBottomColor: colors.borderLight,
                           },
+                        isDropTargetGroup && {
+                          backgroundColor: `${colors.accent}30`,
+                        },
                       ]}
                       onPress={() => {
+                        if (dragSource) {
+                          handleDropOnGroup(gIdx);
+                          return;
+                        }
                         selectArea(group.allLabels, group.label);
                         toggleGroup(gIdx);
                       }}
@@ -496,6 +777,19 @@ export default function FilterModal() {
                       >
                         {isExpanded ? "\u25B4" : "\u25BE"}
                       </Text>
+                      <TouchableOpacity
+                        onPress={() =>
+                          handleRenameLabel(group.allLabels, group.label)
+                        }
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                        style={styles.editButton}
+                      >
+                        <Feather
+                          name="edit-3"
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                      </TouchableOpacity>
                       <View
                         style={[
                           styles.countPill,
@@ -518,6 +812,10 @@ export default function FilterModal() {
                         );
                         const subIsLast =
                           sIdx === group.subAreas.length - 1 && isLast;
+                        const isSubDragSource =
+                          dragSource !== null &&
+                          dragSource.groupIdx === gIdx &&
+                          labelsMatch(dragSource.labels, sub.labels);
 
                         return (
                           <TouchableOpacity
@@ -529,12 +827,13 @@ export default function FilterModal() {
                                 borderBottomWidth: StyleSheet.hairlineWidth,
                                 borderBottomColor: colors.borderLight,
                               },
+                              isSubDragSource && { opacity: 0.4 },
                             ]}
                             onPress={() =>
                               selectArea(sub.labels, sub.fullLabel)
                             }
                             onLongPress={() =>
-                              handleRenameLabel(sub.labels, sub.fullLabel)
+                              handleStartDrag(gIdx, sub.labels, sub.fullLabel)
                             }
                           >
                             <View
@@ -556,6 +855,19 @@ export default function FilterModal() {
                             >
                               {sub.label}
                             </Text>
+                            <TouchableOpacity
+                              onPress={() =>
+                                handleRenameLabel(sub.labels, sub.fullLabel)
+                              }
+                              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                              style={styles.editButton}
+                            >
+                              <Feather
+                                name="edit-3"
+                                size={14}
+                                color={colors.textSecondary}
+                              />
+                            </TouchableOpacity>
                             <View
                               style={[
                                 styles.countPill,
@@ -581,7 +893,6 @@ export default function FilterModal() {
                 );
               })}
             </View>
-          )
         )}
       </ScrollView>
 
@@ -647,10 +958,23 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 8,
   },
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 12,
+    marginTop: 8,
+  },
   presetRow: {
     flexDirection: "row",
     gap: 8,
     marginBottom: 16,
+  },
+  activityScroll: {
+    marginBottom: 16,
+  },
+  activityScrollContent: {
+    gap: 8,
   },
   presetChip: {
     paddingHorizontal: 14,
@@ -675,7 +999,7 @@ const styles = StyleSheet.create({
   },
   datePickerCol: {
     flex: 1,
-    alignItems: "stretch",
+    alignItems: "center",
     gap: 4,
     transform: [{ scale: 0.85 }],
   },
@@ -723,6 +1047,41 @@ const styles = StyleSheet.create({
   countPillText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
+  },
+  editButton: {
+    padding: 4,
+  },
+  dragBannerWrap: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  dragBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderRadius: 999,
+    borderWidth: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  dragBannerText: {
+    flex: 1,
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+  },
+  dropRootZone: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    paddingVertical: 10,
+  },
+  dropRootText: {
+    fontFamily: Fonts.medium,
+    fontSize: 13,
   },
   chevron: {
     fontSize: 14,
