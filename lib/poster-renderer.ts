@@ -1,6 +1,7 @@
 import {
   Skia,
   BlendMode,
+  FillType,
   PaintStyle,
   StrokeCap,
   StrokeJoin,
@@ -362,7 +363,7 @@ export interface PosterOptions {
   strokeWidth: number;
   opacity: number;
   showLabel: boolean;
-  showBorder: boolean;
+  frameStyle: "none" | "rect" | "circle";
   labelText: string;
 }
 
@@ -432,8 +433,9 @@ export function drawPoster(
     canvas.drawPath(path, corePaint);
   }
 
-  // 3. Decorative border with solid margin fill (drawn before label so label sits on top)
-  if (options.showBorder) {
+  // 3. Decorative frame with solid margin fill (drawn before label so label sits on top)
+  const { frameStyle } = options;
+  if (frameStyle === "rect" || frameStyle === "circle") {
     const sideInset = Math.round(width * 0.035);
     // When label is shown, enlarge bottom margin — label sits below the frame
     const bottomInset = hasLabel ? Math.round(height * 0.12) : sideInset;
@@ -444,56 +446,90 @@ export function drawPoster(
     marginPaint.setAntiAlias(true);
     marginPaint.setBlendMode(BlendMode.SrcOver);
 
-    // Top
-    canvas.drawRect({ x: 0, y: 0, width, height: sideInset }, marginPaint);
-    // Bottom (larger when label shown)
-    canvas.drawRect(
-      { x: 0, y: height - bottomInset, width, height: bottomInset },
-      marginPaint,
-    );
-    // Left
-    canvas.drawRect(
-      {
-        x: 0,
-        y: sideInset,
-        width: sideInset,
-        height: height - sideInset - bottomInset,
-      },
-      marginPaint,
-    );
-    // Right
-    canvas.drawRect(
-      {
-        x: width - sideInset,
-        y: sideInset,
-        width: sideInset,
-        height: height - sideInset - bottomInset,
-      },
-      marginPaint,
-    );
+    if (frameStyle === "circle") {
+      // Circle frame: fill margin around an elliptical hole using even-odd fill
+      const cx = width / 2;
+      const frameH = height - bottomInset;
+      const cy = frameH / 2;
+      const rx = (width - sideInset * 2) / 2;
+      const ry = (frameH - sideInset * 2) / 2;
 
-    // Border line — bottom edge stops before the label area
-    const borderPaint = Skia.Paint();
-    borderPaint.setStyle(PaintStyle.Stroke);
-    borderPaint.setStrokeWidth(Math.max(1, Math.round(width * 0.003)));
-    borderPaint.setColor(Skia.Color(theme.labelColor));
-    borderPaint.setAlphaf(0.5);
-    borderPaint.setAntiAlias(true);
-    borderPaint.setBlendMode(BlendMode.SrcOver);
+      const marginPath = Skia.Path.Make();
+      marginPath.addRect({ x: 0, y: 0, width, height });
+      marginPath.addOval({
+        x: cx - rx,
+        y: cy - ry,
+        width: rx * 2,
+        height: ry * 2,
+      });
+      marginPath.setFillType(FillType.EvenOdd);
+      canvas.drawPath(marginPath, marginPaint);
 
-    canvas.drawRect(
-      {
-        x: sideInset,
-        y: sideInset,
-        width: width - sideInset * 2,
-        height: height - sideInset - bottomInset,
-      },
-      borderPaint,
-    );
+      // Ellipse border line
+      const borderPaint = Skia.Paint();
+      borderPaint.setStyle(PaintStyle.Stroke);
+      borderPaint.setStrokeWidth(Math.max(1, Math.round(width * 0.003)));
+      borderPaint.setColor(Skia.Color(theme.labelColor));
+      borderPaint.setAlphaf(0.5);
+      borderPaint.setAntiAlias(true);
+      borderPaint.setBlendMode(BlendMode.SrcOver);
+      canvas.drawOval(
+        { x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2 },
+        borderPaint,
+      );
+    } else {
+      // Rect frame: fill margin rects around the border
+      // Top
+      canvas.drawRect({ x: 0, y: 0, width, height: sideInset }, marginPaint);
+      // Bottom (larger when label shown)
+      canvas.drawRect(
+        { x: 0, y: height - bottomInset, width, height: bottomInset },
+        marginPaint,
+      );
+      // Left
+      canvas.drawRect(
+        {
+          x: 0,
+          y: sideInset,
+          width: sideInset,
+          height: height - sideInset - bottomInset,
+        },
+        marginPaint,
+      );
+      // Right
+      canvas.drawRect(
+        {
+          x: width - sideInset,
+          y: sideInset,
+          width: sideInset,
+          height: height - sideInset - bottomInset,
+        },
+        marginPaint,
+      );
+
+      // Border line — bottom edge stops before the label area
+      const borderPaint = Skia.Paint();
+      borderPaint.setStyle(PaintStyle.Stroke);
+      borderPaint.setStrokeWidth(Math.max(1, Math.round(width * 0.003)));
+      borderPaint.setColor(Skia.Color(theme.labelColor));
+      borderPaint.setAlphaf(0.5);
+      borderPaint.setAntiAlias(true);
+      borderPaint.setBlendMode(BlendMode.SrcOver);
+
+      canvas.drawRect(
+        {
+          x: sideInset,
+          y: sideInset,
+          width: width - sideInset * 2,
+          height: height - sideInset - bottomInset,
+        },
+        borderPaint,
+      );
+    }
   }
 
-  // 4. Label background gradient (only when no border — border margin already provides solid bg)
-  if (hasLabel && !options.showBorder) {
+  // 4. Label background gradient (only when no frame — frame margin already provides solid bg)
+  if (hasLabel && frameStyle === "none") {
     const gradientH = Math.round(height * 0.25);
     const gradientTop = height - gradientH;
 
@@ -544,11 +580,12 @@ export function drawPosterLabel(
   height: number,
   labelText: string,
   labelColor: string,
-  showBorder: boolean,
+  frameStyle: "none" | "rect" | "circle",
   typeface: SkTypeface,
 ) {
   const fontSize = Math.round(width * 0.04);
-  const areaH = Math.round(height * (showBorder ? 0.12 : 0.1));
+  const hasFrame = frameStyle !== "none";
+  const areaH = Math.round(height * (hasFrame ? 0.12 : 0.1));
 
   const provider = Skia.TypefaceFontProvider.Make();
   provider.registerFont(typeface, "PosterFont");
@@ -652,7 +689,7 @@ export function renderHighResPoster(
       h,
       options.labelText,
       options.theme.labelColor,
-      options.showBorder,
+      options.frameStyle,
       labelTypeface,
     );
   }

@@ -8,7 +8,7 @@ export interface ExportSettings {
   intensity: number;
   showLabel: boolean;
   showMap: boolean;
-  showBorder: boolean;
+  frameStyle: "none" | "rect" | "circle";
   colorHue: number;
   labelText: string | null;
   /** The areaLabel that was active when labelText was last saved. */
@@ -46,7 +46,7 @@ export function defaultExportSettings(
     intensity: THEME_DEFAULT_INTENSITY[themeId] ?? 0.3,
     showLabel: true,
     showMap: true,
-    showBorder: false,
+    frameStyle: "none",
     colorHue: 0,
     labelText: null,
     labelAreaLabel: null,

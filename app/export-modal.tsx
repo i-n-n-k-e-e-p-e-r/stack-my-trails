@@ -151,7 +151,9 @@ export default function ExportModal() {
   const [intensity, setIntensity] = useState(initial.intensity);
   const [showLabel, setShowLabel] = useState(initial.showLabel);
   const [showMap, setShowMap] = useState(initial.showMap);
-  const [showBorder, setShowBorder] = useState(initial.showBorder);
+  const [frameStyle, setFrameStyle] = useState<"none" | "rect" | "circle">(
+    initial.frameStyle ?? "none",
+  );
   const [colorHue, setColorHue] = useState(initial.colorHue);
   const [labelText, setLabelText] = useState(() => {
     const areaChanged = saved?.labelAreaLabel !== (areaLabel || "");
@@ -180,7 +182,7 @@ export default function ExportModal() {
       intensity,
       showLabel,
       showMap,
-      showBorder,
+      frameStyle,
       colorHue,
       labelText,
       labelAreaLabel: areaLabel || "",
@@ -190,7 +192,7 @@ export default function ExportModal() {
     intensity,
     showLabel,
     showMap,
-    showBorder,
+    frameStyle,
     colorHue,
     labelText,
     areaLabel,
@@ -377,7 +379,7 @@ export default function ExportModal() {
           strokeWidth,
           opacity,
           showLabel,
-          showBorder,
+          frameStyle,
           labelText,
         });
       },
@@ -391,7 +393,7 @@ export default function ExportModal() {
     strokeWidth,
     opacity,
     showLabel,
-    showBorder,
+    frameStyle,
     labelText,
   ]);
 
@@ -442,7 +444,7 @@ export default function ExportModal() {
         strokeWidth,
         opacity,
         showLabel,
-        showBorder,
+        frameStyle,
         labelText,
       },
       canvasWidth,
@@ -468,7 +470,7 @@ export default function ExportModal() {
     strokeWidth,
     opacity,
     showLabel,
-    showBorder,
+    frameStyle,
     labelText,
     labelTypeface,
   ]);
@@ -609,7 +611,7 @@ export default function ExportModal() {
               ]}
             />
 
-            {!framing && (
+            {!framing && referenceData ? (
               <Canvas
                 opaque={false}
                 pointerEvents="none"
@@ -620,7 +622,14 @@ export default function ExportModal() {
               >
                 {picture && <Picture picture={picture} />}
               </Canvas>
-            )}
+            ) : !framing && !referenceData ? (
+              <View
+                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, styles.preparingOverlay]}
+              >
+                <ActivityIndicator size="small" color={colors.textSecondary} />
+              </View>
+            ) : null}
 
             {showLabel && labelText ? (
               <View
@@ -629,7 +638,7 @@ export default function ExportModal() {
                   styles.posterLabelArea,
                   {
                     height: Math.round(
-                      canvasHeight * (showBorder ? 0.12 : 0.1),
+                      canvasHeight * (frameStyle !== "none" ? 0.12 : 0.1),
                     ),
                   },
                 ]}
@@ -740,19 +749,27 @@ export default function ExportModal() {
           style={[
             styles.optionCircle,
             {
-              backgroundColor: showBorder ? colors.accent : "transparent",
-              borderColor: showBorder
-                ? colors.activeSelectionBorder
-                : colors.borderLight,
-              borderWidth: showBorder ? 3 : 1.5,
+              backgroundColor:
+                frameStyle !== "none" ? colors.accent : "transparent",
+              borderColor:
+                frameStyle !== "none"
+                  ? colors.activeSelectionBorder
+                  : colors.borderLight,
+              borderWidth: frameStyle !== "none" ? 3 : 1.5,
             },
           ]}
-          onPress={() => setShowBorder(!showBorder)}
+          onPress={() =>
+            setFrameStyle((prev) =>
+              prev === "none" ? "rect" : prev === "rect" ? "circle" : "none",
+            )
+          }
         >
           <Feather
-            name="square"
+            name={frameStyle === "circle" ? "circle" : "square"}
             size={16}
-            color={showBorder ? colors.text : colors.textSecondary}
+            color={
+              frameStyle !== "none" ? colors.text : colors.textSecondary
+            }
           />
         </TouchableOpacity>
       </View>
@@ -904,6 +921,10 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.bold,
     textAlign: "center",
     letterSpacing: 1,
+  },
+  preparingOverlay: {
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyCanvas: {
     width: "100%",
