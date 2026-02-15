@@ -478,7 +478,7 @@ export default function SettingsScreen() {
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
           {trailCount > 0
             ? "Export your trails as a signed backup file. Import on another device or after reinstalling."
-            : "Import trails from a backup file."}
+            : ""}
         </Text>
 
         {/* Delete section */}
