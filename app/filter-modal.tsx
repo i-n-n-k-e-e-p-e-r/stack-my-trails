@@ -22,21 +22,22 @@ import {
 } from "@/lib/db";
 import { getFilters, setFilters } from "@/lib/filter-store";
 import type { TrailSummary } from "@/lib/geo";
+import { useTranslation } from "@/contexts/language";
 
 const PRESETS = [
-  { label: "1D", days: 1 },
-  { label: "1W", days: 7 },
-  { label: "1M", days: 30 },
-  { label: "1Y", days: 365 },
-  { label: "All", days: 3650 },
+  { labelKey: "filter.preset.1d", days: 1 },
+  { labelKey: "filter.preset.1w", days: 7 },
+  { labelKey: "filter.preset.1m", days: 30 },
+  { labelKey: "filter.preset.1y", days: 365 },
+  { labelKey: "filter.preset.all", days: 3650 },
 ] as const;
 
 const ACTIVITIES = [
-  { type: 37, label: "Run" },
-  { type: 52, label: "Walk" },
-  { type: 13, label: "Cycle" },
-  { type: 24, label: "Hike" },
-  { type: 46, label: "Swim" },
+  { type: 37, labelKey: "activity.run" },
+  { type: 52, labelKey: "activity.walk" },
+  { type: 13, labelKey: "activity.cycle" },
+  { type: 24, labelKey: "activity.hike" },
+  { type: 46, labelKey: "activity.swim" },
 ] as const;
 
 interface SubArea {
@@ -63,10 +64,10 @@ function extractLocality(label: string): string {
   return idx >= 0 ? label.substring(0, idx) : label;
 }
 
-function buildAreaGroups(summaries: TrailSummary[]): AreaGroup[] {
+function buildAreaGroups(summaries: TrailSummary[], unknownLabel: string): AreaGroup[] {
   const byLabel = new Map<string, number>();
   for (const s of summaries) {
-    const label = s.locationLabel || "Unknown";
+    const label = s.locationLabel || unknownLabel;
     byLabel.set(label, (byLabel.get(label) ?? 0) + 1);
   }
 
@@ -115,6 +116,7 @@ export default function FilterModal() {
   const colors = Colors[colorScheme];
   const router = useRouter();
   const db = useSQLiteContext();
+  const { t } = useTranslation();
   const currentFilters = getFilters();
 
   const [startDate, setStartDate] = useState(currentFilters.startDate);
@@ -147,8 +149,8 @@ export default function FilterModal() {
         selectedActivities.includes(s.activityType),
       );
     }
-    return buildAreaGroups(filtered);
-  }, [allSummaries, startDate, endDate, selectedActivities]);
+    return buildAreaGroups(filtered, t("filter.unknown"));
+  }, [allSummaries, startDate, endDate, selectedActivities, t]);
 
   const reloadAreas = async () => {
     const summaries = await getAllTrailSummaries(db);
@@ -201,8 +203,8 @@ export default function FilterModal() {
 
   const handleRenameLabel = (labels: string[], currentDisplay: string) => {
     Alert.prompt(
-      "Rename Area",
-      `Current: "${currentDisplay}"`,
+      t("filter.renameAreaTitle"),
+      t("filter.renameCurrent", { name: currentDisplay }),
       async (newName) => {
         if (
           !newName ||
@@ -222,11 +224,11 @@ export default function FilterModal() {
 
         if (willMerge) {
           Alert.alert(
-            "Merge Areas?",
-            `"${trimmed}" already exists. All workouts will be merged under this label.`,
+            t("filter.mergeTitle"),
+            t("filter.mergeMessage", { name: trimmed }),
             [
-              { text: "Cancel", style: "cancel" },
-              { text: "Merge", onPress: () => doRename(labels, trimmed) },
+              { text: t("common.cancel"), style: "cancel" },
+              { text: t("filter.merge"), onPress: () => doRename(labels, trimmed) },
             ],
           );
         } else {
@@ -240,8 +242,8 @@ export default function FilterModal() {
 
   const handleRenameGroup = (group: AreaGroup) => {
     Alert.prompt(
-      "Rename Group",
-      `Current: "${group.label}"`,
+      t("filter.renameGroupTitle"),
+      t("filter.renameCurrent", { name: group.label }),
       async (newName) => {
         if (!newName || newName.trim() === "" || newName.trim() === group.label)
           return;
@@ -264,21 +266,21 @@ export default function FilterModal() {
     );
   };
 
-  const getActivePreset = () => {
+  const getActivePresetDays = () => {
     // Check if "All" preset is active by comparing with database date range
     if (dbDateRange) {
       const isAllPreset =
         Math.abs(startDate.getTime() - dbDateRange.minDate.getTime()) < 1000 &&
         Math.abs(endDate.getTime() - dbDateRange.maxDate.getTime()) < 1000;
-      if (isAllPreset) return "All";
+      if (isAllPreset) return 3650;
     }
 
     // Check other presets by day difference
     const diffMs = endDate.getTime() - startDate.getTime();
     const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
     return (
-      PRESETS.find((p) => p.label !== "All" && Math.abs(p.days - diffDays) <= 1)
-        ?.label ?? null
+      PRESETS.find((p) => p.days !== 3650 && Math.abs(p.days - diffDays) <= 1)
+        ?.days ?? null
     );
   };
 
@@ -368,15 +370,15 @@ export default function FilterModal() {
 
     if (willMerge) {
       Alert.alert(
-        "Merge Areas?",
-        `Some areas will merge with existing areas in "${targetCity}". All workouts will be combined.`,
+        t("filter.mergeTitle"),
+        t("filter.mergeDragMessage", { city: targetCity }),
         [
           {
-            text: "Cancel",
+            text: t("common.cancel"),
             style: "cancel",
             onPress: () => setDragSource(null),
           },
-          { text: "Merge", onPress: doMove },
+          { text: t("filter.merge"), onPress: doMove },
         ],
       );
     } else {
@@ -434,7 +436,7 @@ export default function FilterModal() {
     return a.every((l) => b.includes(l));
   };
 
-  const activePreset = getActivePreset();
+  const activePresetDays = getActivePresetDays();
 
   return (
     <View
@@ -458,15 +460,15 @@ export default function FilterModal() {
       >
         {/* Date range section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          DATE RANGE
+          {t("filter.dateRange")}
         </Text>
 
         <View style={styles.presetRow}>
           {PRESETS.map((preset) => {
-            const isActive = activePreset === preset.label;
+            const isActive = activePresetDays === preset.days;
             return (
               <TouchableOpacity
-                key={preset.label}
+                key={preset.days}
                 style={[
                   styles.presetChip,
                   {
@@ -486,7 +488,7 @@ export default function FilterModal() {
                     },
                   ]}
                 >
-                  {preset.label}
+                  {t(preset.labelKey)}
                 </Text>
               </TouchableOpacity>
             );
@@ -501,7 +503,7 @@ export default function FilterModal() {
         >
           <View style={styles.datePickerCol}>
             <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
-              From:
+              {t("filter.from")}
             </Text>
             <DateTimePicker
               value={startDate}
@@ -517,7 +519,7 @@ export default function FilterModal() {
           </View>
           <View style={styles.datePickerCol}>
             <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
-              To:
+              {t("filter.to")}
             </Text>
             <DateTimePicker
               value={endDate}
@@ -535,7 +537,7 @@ export default function FilterModal() {
 
         {/* Activities section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          ACTIVITIES
+          {t("filter.activities")}
         </Text>
         <View style={styles.activityWrap}>
           {ACTIVITIES.map((act) => {
@@ -555,7 +557,7 @@ export default function FilterModal() {
                 onPress={() => toggleActivity(act.type)}
               >
                 <Text style={[styles.presetText, { color: colors.text }]}>
-                  {act.label}
+                  {t(act.labelKey)}
                 </Text>
               </TouchableOpacity>
             );
@@ -564,7 +566,7 @@ export default function FilterModal() {
 
         {/* Areas section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          AREAS
+          {t("filter.areas")}
         </Text>
 
         {dragSource && (
@@ -582,7 +584,7 @@ export default function FilterModal() {
                 style={[styles.dragBannerText, { color: colors.text }]}
                 numberOfLines={1}
               >
-                Move &quot;{dragSource.displayLabel}&quot;
+                {t("filter.moveLabel", { label: dragSource.displayLabel })}
               </Text>
               <TouchableOpacity onPress={() => setDragSource(null)}>
                 <Feather name="x" size={18} color={colors.text} />
@@ -605,7 +607,7 @@ export default function FilterModal() {
               <Text
                 style={[styles.dropRootText, { color: colors.textSecondary }]}
               >
-                Move to top level
+                {t("filter.moveToTop")}
               </Text>
             </TouchableOpacity>
           </View>
@@ -616,7 +618,7 @@ export default function FilterModal() {
             <Text
               style={[styles.areaLoadingText, { color: colors.textSecondary }]}
             >
-              Loading areas...
+              {t("filter.loadingAreas")}
             </Text>
           </View>
         ) : areaGroups.length === 0 ? (
@@ -624,7 +626,7 @@ export default function FilterModal() {
             <Text
               style={[styles.areaLoadingText, { color: colors.textSecondary }]}
             >
-              No areas match the current filters
+              {t("filter.noAreasMatch")}
             </Text>
           </View>
         ) : (
@@ -910,7 +912,7 @@ export default function FilterModal() {
           disabled={selectedLabels.length === 0}
         >
           <Text style={[styles.applyButtonText, { color: colors.text }]}>
-            Apply Filters
+            {t("filter.apply")}
           </Text>
         </TouchableOpacity>
       </View>

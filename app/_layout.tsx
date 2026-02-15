@@ -9,12 +9,14 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemeProvider } from '@/contexts/theme';
+import { LanguageProvider, useTranslation } from '@/contexts/language';
 import { initDatabase } from '@/lib/db';
 
 SplashScreen.preventAutoHideAsync();
 
 function InnerLayout() {
   const colorScheme = useColorScheme();
+  const { t } = useTranslation();
 
   return (
     <NavThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
@@ -22,7 +24,7 @@ function InnerLayout() {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen
           name="filter-modal"
-          options={{ presentation: 'modal', title: 'Filters' }}
+          options={{ presentation: 'modal', title: t('layout.filtersTitle') }}
         />
         <Stack.Screen
           name="export-modal"
@@ -53,7 +55,9 @@ export default function RootLayout() {
   return (
     <SQLiteProvider databaseName="trails.db" onInit={initDatabase}>
       <ThemeProvider>
-        <InnerLayout />
+        <LanguageProvider>
+          <InnerLayout />
+        </LanguageProvider>
       </ThemeProvider>
     </SQLiteProvider>
   );

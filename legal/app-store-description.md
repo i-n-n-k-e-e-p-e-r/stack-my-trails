@@ -12,11 +12,17 @@ Visualize your workout routes
 
 Health & Fitness
 
+## Price
+
+One-time purchase (configured in App Store Connect, not in app.json)
+
 ## Description
 
 Stack My Trails reads your workout routes from Apple Health and stacks them on a single map, creating a beautiful heatmap-like visualization of your training routes.
 
 See all your runs, walks, hikes, and cycling routes layered together. Discover your favorite paths, explore patterns in your training, and turn your routes into art.
+
+Pay once, own it forever. No subscriptions, no accounts, no cloud. Your data stays on your device.
 
 KEY FEATURES
 
@@ -36,7 +42,7 @@ KEY FEATURES
 
 YOUR DATA, YOUR DEVICE
 
-Stack My Trails stores everything locally on your device. No accounts, no servers, no tracking. Your workout data never leaves your phone unless you explicitly save or share a poster image or backup file.
+Stack My Trails stores everything locally on your device. No accounts, no servers, no tracking. Your workout data is yours — it lives on your device, not on our servers (we don't have any).
 
 POSTER THEMES
 

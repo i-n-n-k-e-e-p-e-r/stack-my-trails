@@ -31,6 +31,7 @@ import {
   subscribeFilters,
   hasActiveFilters,
 } from "@/lib/filter-store";
+import { useTranslation } from "@/contexts/language";
 
 const TRAIL_WIDTH = 3;
 const EXPORT_ASPECT_RATIO = 3 / 4; // 3:4 poster aspect
@@ -42,6 +43,7 @@ export default function StackScreen() {
   const mapRef = useRef<MapView>(null);
   const router = useRouter();
   const db = useSQLiteContext();
+  const { t } = useTranslation();
   const [hasTrails, setHasTrails] = useState(true);
   const [showLocation, setShowLocation] = useState(false);
 
@@ -203,10 +205,10 @@ export default function StackScreen() {
         ]}
       >
         <Text style={[styles.emptyTitle, { color: colors.text }]}>
-          No trails yet
+          {t("stack.empty.title")}
         </Text>
         <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-          Import your workouts first to stack them on the map.
+          {t("stack.empty.subtitle")}
         </Text>
         <TouchableOpacity
           style={[
@@ -219,7 +221,7 @@ export default function StackScreen() {
           onPress={() => router.push("/(tabs)/settings")}
         >
           <Text style={[styles.emptyButtonText, { color: colors.text }]}>
-            Import Workouts
+            {t("stack.empty.button")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -292,14 +294,16 @@ export default function StackScreen() {
               style={[styles.clusterLabel, { color: colors.text }]}
               numberOfLines={1}
             >
-              {areaLabel ?? "Select an area"}
+              {areaLabel ?? t("stack.selectArea")}
             </Text>
             <Text style={[styles.trailCount, { color: colors.textSecondary }]}>
               {!filtersActive
-                ? "Tap filter to choose"
+                ? t("stack.tapFilter")
                 : loading || loadingTrails
-                  ? "Loading..."
-                  : `${renderedTrails.length}${totalInCluster > renderedTrails.length ? ` of ${totalInCluster}` : ""} trails`}
+                  ? t("stack.loading")
+                  : totalInCluster > renderedTrails.length
+                    ? t("stack.trailCountPartial", { rendered: renderedTrails.length, total: totalInCluster })
+                    : t("stack.trailCount", { count: renderedTrails.length })}
             </Text>
           </View>
           <View style={styles.topActions}>
@@ -358,7 +362,7 @@ export default function StackScreen() {
         >
           <Feather name="map-pin" size={36} color={colors.textSecondary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Select an area to see trails
+            {t("stack.selectAreaOverlay")}
           </Text>
         </View>
       )}
@@ -372,7 +376,7 @@ export default function StackScreen() {
         >
           <ActivityIndicator size="large" color={colors.accent} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Loading trails...
+            {t("stack.loadingTrails")}
           </Text>
         </View>
       )}

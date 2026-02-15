@@ -26,27 +26,32 @@ import {
   setSetting,
 } from "@/lib/db";
 import { useThemePreference, type ThemePreference } from "@/contexts/theme";
+import { useTranslation } from "@/contexts/language";
+import { LANGUAGES, type Language } from "@/lib/i18n";
 import { resetFilters } from "@/lib/filter-store";
 import { exportTrailData, importTrailData } from "@/lib/trail-data-io";
 import Constants from "expo-constants";
 
-const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: "auto", label: "Auto" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
+const THEME_OPTIONS: { value: ThemePreference; labelKey: string }[] = [
+  { value: "auto", labelKey: "settings.theme.auto" },
+  { value: "light", labelKey: "settings.theme.light" },
+  { value: "dark", labelKey: "settings.theme.dark" },
 ];
 
-function formatRelativeDate(iso: string): string {
+function formatRelativeDate(
+  iso: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   const d = new Date(iso);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
   const diffMin = Math.floor(diffMs / 60000);
-  if (diffMin < 1) return "Just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 1) return t("relativeDate.justNow");
+  if (diffMin < 60) return t("relativeDate.minutesAgo", { count: diffMin });
   const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffHr < 24) return t("relativeDate.hoursAgo", { count: diffHr });
   const diffDay = Math.floor(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
+  if (diffDay < 7) return t("relativeDate.daysAgo", { count: diffDay });
   return d.toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
@@ -60,6 +65,7 @@ export default function SettingsScreen() {
   const colors = Colors[colorScheme];
   const db = useSQLiteContext();
   const { preference, setPreference } = useThemePreference();
+  const { t, language, setLanguage } = useTranslation();
 
   const { importing, progress, total, error, startImport } = useImportTrails();
   const [trailCount, setTrailCount] = useState(0);
@@ -69,6 +75,7 @@ export default function SettingsScreen() {
   const [dataImporting, setDataImporting] = useState(false);
   const [showLocation, setShowLocation] = useState(false);
   const [gpsFilter, setGpsFilter] = useState(true);
+  const [langOpen, setLangOpen] = useState(false);
 
   const refreshStats = useCallback(() => {
     getTrailCount(db).then(setTrailCount);
@@ -105,8 +112,8 @@ export default function SettingsScreen() {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== "granted") {
           Alert.alert(
-            "Location Access",
-            "Please enable location access in Settings to show your position on the map.",
+            t("settings.alert.locationTitle"),
+            t("settings.alert.locationMessage"),
           );
           return;
         }
@@ -114,7 +121,7 @@ export default function SettingsScreen() {
       setShowLocation(value);
       setSetting(db, "showLocation", value ? "true" : "false").catch(() => {});
     },
-    [db],
+    [db, t],
   );
 
   const handleToggleGpsFilter = useCallback(
@@ -127,12 +134,12 @@ export default function SettingsScreen() {
 
   const handleDeleteAll = useCallback(() => {
     Alert.alert(
-      "Delete All Data",
-      "This will remove all imported trails and cached labels. You will need to re-import.",
+      t("settings.alert.deleteTitle"),
+      t("settings.alert.deleteMessage"),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t("common.cancel"), style: "cancel" },
         {
-          text: "Delete",
+          text: t("common.delete"),
           style: "destructive",
           onPress: async () => {
             setDeleting(true);
@@ -143,7 +150,7 @@ export default function SettingsScreen() {
         },
       ],
     );
-  }, [db]);
+  }, [db, t]);
 
   const busy = importing || deleting || dataExporting || dataImporting;
 
@@ -154,13 +161,13 @@ export default function SettingsScreen() {
       await Sharing.shareAsync(fileUri, { UTI: "public.json" });
     } catch (e) {
       Alert.alert(
-        "Export Failed",
-        e instanceof Error ? e.message : "Unknown error",
+        t("settings.alert.exportFailedTitle"),
+        e instanceof Error ? e.message : t("common.unknownError"),
       );
     } finally {
       setDataExporting(false);
     }
-  }, [db]);
+  }, [db, t]);
 
   const handleImportData = useCallback(async () => {
     try {
@@ -178,19 +185,27 @@ export default function SettingsScreen() {
       } = await importTrailData(db, result.assets[0].uri);
       resetFilters();
       refreshStats();
+      const skippedText =
+        skipped > 0
+          ? t("settings.alert.importCompleteSkipped", { skipped })
+          : "";
       Alert.alert(
-        "Import Complete",
-        `${imported} trails imported${skipped > 0 ? `, ${skipped} already existed` : ""} (${fileTotal} total in file)`,
+        t("settings.alert.importCompleteTitle"),
+        t("settings.alert.importCompleteMessage", {
+          imported,
+          skippedText,
+          total: fileTotal,
+        }),
       );
     } catch (e) {
       Alert.alert(
-        "Import Failed",
-        e instanceof Error ? e.message : "Unknown error",
+        t("settings.alert.importFailedTitle"),
+        e instanceof Error ? e.message : t("common.unknownError"),
       );
     } finally {
       setDataImporting(false);
     }
-  }, [db, refreshStats]);
+  }, [db, refreshStats, t]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -205,7 +220,7 @@ export default function SettingsScreen() {
         ]}
       >
         <Text style={[styles.screenTitle, { color: colors.text }]}>
-          Settings
+          {t("settings.title")}
         </Text>
       </View>
 
@@ -218,7 +233,7 @@ export default function SettingsScreen() {
       >
         {/* Appearance section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          APPEARANCE
+          {t("settings.appearance")}
         </Text>
         <View
           style={[
@@ -245,7 +260,7 @@ export default function SettingsScreen() {
                   onPress={() => setPreference(opt.value)}
                 >
                   <Text style={[styles.segmentText, { color: colors.text }]}>
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -253,9 +268,67 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Language section */}
+        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+          {t("settings.language")}
+        </Text>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.surface,
+              borderColor: colors.border,
+              padding: 0,
+              overflow: "hidden",
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.dropdownHeader}
+            onPress={() => setLangOpen((v) => !v)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.dropdownHeaderText, { color: colors.text }]}>
+              {LANGUAGES.find((l) => l.value === language)?.label ?? "English"}
+            </Text>
+            <Feather
+              name={langOpen ? "chevron-up" : "chevron-down"}
+              size={18}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+          {langOpen &&
+            LANGUAGES.filter((opt) => opt.value !== language).map(
+              (opt, idx, arr) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[
+                    styles.dropdownOption,
+                    {
+                      borderTopColor: colors.borderLight,
+                      borderTopWidth: StyleSheet.hairlineWidth,
+                    },
+                    idx === arr.length - 1 && { borderBottomWidth: 0 },
+                  ]}
+                  onPress={() => {
+                    setLanguage(opt.value);
+                    setLangOpen(false);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[styles.dropdownOptionText, { color: colors.text }]}
+                  >
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ),
+            )}
+        </View>
+
         {/* Map section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          MAP
+          {t("settings.map")}
         </Text>
         <View
           style={[
@@ -272,7 +345,7 @@ export default function SettingsScreen() {
           ]}
         >
           <Text style={[styles.switchLabel, { color: colors.text }]}>
-            Show My Location
+            {t("settings.showLocation")}
           </Text>
           <Switch
             value={showLocation}
@@ -283,7 +356,7 @@ export default function SettingsScreen() {
 
         {/* Health Data section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          HEALTH DATA
+          {t("settings.healthData")}
         </Text>
         <View
           style={[
@@ -295,7 +368,7 @@ export default function SettingsScreen() {
             style={[styles.statRow, { borderBottomColor: colors.borderLight }]}
           >
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Total trails
+              {t("settings.totalTrails")}
             </Text>
             <Text style={[styles.statValue, { color: colors.text }]}>
               {trailCount}
@@ -304,10 +377,12 @@ export default function SettingsScreen() {
 
           <View style={styles.statRowLast}>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-              Last import
+              {t("settings.lastImport")}
             </Text>
             <Text style={[styles.statValue, { color: colors.text }]}>
-              {lastImport ? formatRelativeDate(lastImport) : "Never"}
+              {lastImport
+                ? formatRelativeDate(lastImport, t)
+                : t("settings.lastImportNever")}
             </Text>
           </View>
         </View>
@@ -327,7 +402,7 @@ export default function SettingsScreen() {
           ]}
         >
           <Text style={[styles.switchLabel, { color: colors.text }]}>
-            GPS Spoofing Filter
+            {t("settings.gpsFilter")}
           </Text>
           <Switch
             value={gpsFilter}
@@ -367,8 +442,8 @@ export default function SettingsScreen() {
             </View>
             <Text style={[styles.progressText, { color: colors.text }]}>
               {total > 0
-                ? `${progress} / ${total} workouts`
-                : "Fetching workouts..."}
+                ? t("settings.importProgress", { progress, total })
+                : t("settings.fetchingWorkouts")}
             </Text>
           </View>
         )}
@@ -396,10 +471,10 @@ export default function SettingsScreen() {
           >
             <Text style={[styles.primaryButtonText, { color: colors.text }]}>
               {importing
-                ? "Importing..."
+                ? t("settings.importing")
                 : trailCount > 0
-                  ? "Re-import All"
-                  : "Import Workouts"}
+                  ? t("settings.reimportAll")
+                  : t("settings.importWorkouts")}
             </Text>
           </TouchableOpacity>
 
@@ -416,20 +491,19 @@ export default function SettingsScreen() {
               disabled={busy}
             >
               <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
-                Fetch New Routes
+                {t("settings.fetchNew")}
               </Text>
             </TouchableOpacity>
           )}
         </View>
 
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          Imports running, walking, cycling, hiking, and open water swimming
-          workouts with GPS routes from your device.
+          {t("settings.importHint")}
         </Text>
 
         {/* Backup & Restore section */}
         <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          BACKUP & RESTORE
+          {t("settings.backupRestore")}
         </Text>
         <View style={styles.buttonGroup}>
           {trailCount > 0 && (
@@ -449,7 +523,9 @@ export default function SettingsScreen() {
             >
               <Feather name="upload" size={18} color={colors.text} />
               <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
-                {dataExporting ? "Exporting..." : "Export Data"}
+                {dataExporting
+                  ? t("settings.exporting")
+                  : t("settings.exportData")}
               </Text>
             </TouchableOpacity>
           )}
@@ -470,15 +546,15 @@ export default function SettingsScreen() {
           >
             <Feather name="download" size={18} color={colors.text} />
             <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
-              {dataImporting ? "Importing..." : "Import From File"}
+              {dataImporting
+                ? t("settings.dataImporting")
+                : t("settings.importFromFile")}
             </Text>
           </TouchableOpacity>
         </View>
 
         <Text style={[styles.hint, { color: colors.textSecondary }]}>
-          {trailCount > 0
-            ? "Export your trails as a signed backup file. Import on another device or after reinstalling."
-            : ""}
+          {trailCount > 0 ? t("settings.exportHint") : ""}
         </Text>
 
         {/* Delete section */}
@@ -496,14 +572,16 @@ export default function SettingsScreen() {
               disabled={busy}
             >
               <Text style={[styles.deleteButtonText, { color: colors.danger }]}>
-                {deleting ? "Deleting..." : "Delete All Data"}
+                {deleting ? t("settings.deleting") : t("settings.deleteAll")}
               </Text>
             </TouchableOpacity>
           </View>
         )}
 
         <Text style={[styles.versionText, { color: colors.textSecondary }]}>
-          Stack My Trails v{Constants.expoConfig?.version ?? "1.0.0"}
+          {t("settings.version", {
+            version: Constants.expoConfig?.version ?? "1.0.0",
+          })}
         </Text>
       </ScrollView>
     </View>
@@ -552,6 +630,25 @@ const styles = StyleSheet.create({
   },
   segmentText: {
     fontFamily: Fonts.semibold,
+    fontSize: 15,
+  },
+  dropdownHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dropdownHeaderText: {
+    fontFamily: Fonts.medium,
+    fontSize: 15,
+  },
+  dropdownOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  dropdownOptionText: {
+    fontFamily: Fonts.regular,
     fontSize: 15,
   },
   switchLabel: {

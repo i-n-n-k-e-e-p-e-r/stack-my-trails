@@ -33,6 +33,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
+import { useTranslation } from "@/contexts/language";
 import { getExportData, clearExportData } from "@/lib/export-store";
 import { computeBoundingBox, smoothCoordinates } from "@/lib/geo";
 import {
@@ -124,6 +125,7 @@ export default function ExportModal() {
   const colorScheme = useColorScheme() ?? "light";
   const colors = Colors[colorScheme];
   const router = useRouter();
+  const { t } = useTranslation();
   const viewShotRef = useRef<ViewShot>(null);
   const posterMapRef = useRef<MapView>(null);
 
@@ -482,21 +484,21 @@ export default function ExportModal() {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
-          "Permission Required",
-          "Please allow access to save photos.",
+          t("export.alert.permissionTitle"),
+          t("export.alert.permissionMessage"),
         );
         return;
       }
       const uri = await captureHighRes();
       if (!uri) return;
       await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert("Saved", "Poster saved to your photo library.");
+      Alert.alert(t("export.alert.savedTitle"), t("export.alert.savedMessage"));
     } catch {
-      Alert.alert("Error", "Failed to save poster.");
+      Alert.alert(t("export.alert.errorTitle"), t("export.alert.errorMessage"));
     } finally {
       setExporting(false);
     }
-  }, [captureHighRes]);
+  }, [captureHighRes, t]);
 
   const handleShare = useCallback(async () => {
     setExporting(true);
@@ -520,7 +522,7 @@ export default function ExportModal() {
           { paddingTop: insets.top, borderBottomColor: colors.borderLight },
         ]}
       >
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Export</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{t("export.title")}</Text>
         <TouchableOpacity
           style={[styles.closeButton, { borderColor: colors.border }]}
           onPress={() => router.back()}
@@ -543,7 +545,7 @@ export default function ExportModal() {
           value={labelText}
           onChangeText={setLabelText}
           editable={showLabel}
-          placeholder="Label text"
+          placeholder={t("export.labelPlaceholder")}
           placeholderTextColor={colors.textSecondary}
           autoCapitalize="characters"
           returnKeyType="done"
@@ -665,7 +667,7 @@ export default function ExportModal() {
             style={[styles.emptyCanvas, { borderColor: colors.borderLight }]}
           >
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-              No trails to export
+              {t("export.noTrails")}
             </Text>
           </View>
         )}
@@ -777,7 +779,7 @@ export default function ExportModal() {
       <View style={[styles.sliderSection, { borderColor: colors.border }]}>
         <View style={styles.sliderRow}>
           <Text style={[styles.sliderLabel, { color: colors.textSecondary }]}>
-            INTENSITY
+            {t("export.intensity")}
           </Text>
           <Slider
             style={styles.slider}
@@ -791,7 +793,7 @@ export default function ExportModal() {
           />
         </View>
         <View style={[styles.sliderRow, !tintEnabled && { opacity: 0.3 }]}>
-          <Text style={[styles.sliderLabel, { color: colors.text }]}>TINT</Text>
+          <Text style={[styles.sliderLabel, { color: colors.text }]}>{t("export.tint")}</Text>
           <Slider
             style={styles.slider}
             minimumValue={0}
@@ -827,7 +829,7 @@ export default function ExportModal() {
               <>
                 <Feather name="download" size={18} color={colors.text} />
                 <Text style={[styles.buttonText, { color: colors.text }]}>
-                  Save
+                  {t("export.save")}
                 </Text>
               </>
             )}
@@ -846,7 +848,7 @@ export default function ExportModal() {
           >
             <Feather name="share" size={18} color={colors.text} />
             <Text style={[styles.buttonText, { color: colors.text }]}>
-              Share
+              {t("export.share")}
             </Text>
           </TouchableOpacity>
         </View>

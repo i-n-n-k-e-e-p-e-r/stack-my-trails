@@ -20,13 +20,14 @@ import { getAllTrailSummaries, getTrailCoordinates } from "@/lib/db";
 import { resolveLabel } from "@/lib/geocode";
 import { bboxCenter, smoothCoordinates } from "@/lib/geo";
 import type { TrailSummary, Coordinate } from "@/lib/geo";
+import { useTranslation } from "@/contexts/language";
 
-const ACTIVITY_LABELS: Record<number, string> = {
-  13: "Cycling",
-  24: "Hiking",
-  37: "Running",
-  46: "Swimming",
-  52: "Walking",
+const ACTIVITY_LABEL_KEYS: Record<number, string> = {
+  13: "activity.cycling",
+  24: "activity.hiking",
+  37: "activity.running",
+  46: "activity.swimming",
+  52: "activity.walking",
 };
 
 const ACTIVITY_ICONS: Record<number, string> = {
@@ -38,18 +39,21 @@ const ACTIVITY_ICONS: Record<number, string> = {
 };
 
 const ACTIVITIES = [
-  { type: 37, label: "Run" },
-  { type: 52, label: "Walk" },
-  { type: 13, label: "Cycle" },
-  { type: 24, label: "Hike" },
-  { type: 46, label: "Swim" },
+  { type: 37, labelKey: "activity.run" },
+  { type: 52, labelKey: "activity.walk" },
+  { type: 13, labelKey: "activity.cycle" },
+  { type: 24, labelKey: "activity.hike" },
+  { type: 46, labelKey: "activity.swim" },
 ] as const;
 
-function formatDuration(seconds: number): string {
+function formatDuration(
+  seconds: number,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+  if (h > 0) return t("duration.hoursMinutes", { h, m });
+  return t("duration.minutes", { m });
 }
 
 function formatDate(iso: string): string {
@@ -73,6 +77,7 @@ export default function TrailsScreen() {
   const mapRef = useRef<MapView>(null);
   const db = useSQLiteContext();
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [trails, setTrails] = useState<TrailSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -218,7 +223,7 @@ export default function TrailsScreen() {
                   style={[styles.trailTitle, { color: colors.text }]}
                   numberOfLines={1}
                 >
-                  {ACTIVITY_LABELS[item.activityType] ?? "Workout"}
+                  {t(ACTIVITY_LABEL_KEYS[item.activityType] ?? "trails.workoutFallback")}
                   {" \u00B7 "}
                   {formatDate(item.startDate)}
                 </Text>
@@ -226,14 +231,14 @@ export default function TrailsScreen() {
                   style={[styles.trailSubtitle, { color: colors.text }]}
                   numberOfLines={1}
                 >
-                  {label ?? "Loading..."}
+                  {label ?? t("trails.labelLoading")}
                 </Text>
               </View>
             </View>
             <View style={styles.pillRow}>
               <View style={[styles.pill, { backgroundColor: colors.text }]}>
                 <Text style={[styles.pillText, { color: colors.surface }]}>
-                  {formatDuration(item.duration)}
+                  {formatDuration(item.duration, t)}
                 </Text>
               </View>
               {temp && (
@@ -253,7 +258,7 @@ export default function TrailsScreen() {
         </TouchableOpacity>
       );
     },
-    [selectedId, labels, colors, handleSelect],
+    [selectedId, labels, colors, handleSelect, t],
   );
 
   if (loading) {
@@ -267,7 +272,7 @@ export default function TrailsScreen() {
       >
         <ActivityIndicator size="large" color={colors.accent} />
         <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-          Loading trails...
+          {t("trails.loading")}
         </Text>
       </View>
     );
@@ -283,10 +288,10 @@ export default function TrailsScreen() {
         ]}
       >
         <Text style={[styles.emptyTitle, { color: colors.text }]}>
-          No trails yet
+          {t("trails.empty.title")}
         </Text>
         <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-          Import your workouts to see them here.
+          {t("trails.empty.subtitle")}
         </Text>
         <TouchableOpacity
           style={[
@@ -299,7 +304,7 @@ export default function TrailsScreen() {
           onPress={() => router.push("/(tabs)/settings")}
         >
           <Text style={[styles.emptyButtonText, { color: colors.text }]}>
-            Import Workouts
+            {t("trails.empty.button")}
           </Text>
         </TouchableOpacity>
       </View>
@@ -363,7 +368,7 @@ export default function TrailsScreen() {
       <View style={styles.listContainer}>
         <View style={styles.listHeader}>
           <Text style={[styles.listLabel, { color: colors.textSecondary }]}>
-            YOUR TRAILS
+            {t("trails.title")}
           </Text>
           <Text style={[styles.listCount, { color: colors.textSecondary }]}>
             {filteredTrails.length}
@@ -394,7 +399,7 @@ export default function TrailsScreen() {
                 <Text
                   style={[styles.activityChipText, { color: colors.text }]}
                 >
-                  {act.label}
+                  {t(act.labelKey)}
                 </Text>
               </TouchableOpacity>
             );
@@ -405,7 +410,7 @@ export default function TrailsScreen() {
             <Text
               style={[styles.emptyFilterText, { color: colors.textSecondary }]}
             >
-              No trails match the selected activities
+              {t("trails.emptyFilter")}
             </Text>
           </View>
         ) : (
