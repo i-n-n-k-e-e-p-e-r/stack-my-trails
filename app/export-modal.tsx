@@ -473,6 +473,7 @@ export default function ExportModal() {
     frameStyle,
     labelText,
     labelTypeface,
+    canvasHeight,
   ]);
 
   const handleSave = useCallback(async () => {
@@ -767,9 +768,7 @@ export default function ExportModal() {
           <Feather
             name={frameStyle === "circle" ? "circle" : "square"}
             size={16}
-            color={
-              frameStyle !== "none" ? colors.text : colors.textSecondary
-            }
+            color={frameStyle !== "none" ? colors.text : colors.textSecondary}
           />
         </TouchableOpacity>
       </View>

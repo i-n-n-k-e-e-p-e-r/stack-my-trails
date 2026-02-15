@@ -239,21 +239,29 @@ export default function FilterModal() {
   };
 
   const handleRenameGroup = (group: AreaGroup) => {
-    Alert.prompt("Rename Group", `Current: "${group.label}"`, async (newName) => {
-      if (!newName || newName.trim() === "" || newName.trim() === group.label) return;
-      const trimmed = newName.trim();
-      for (const oldLabel of group.allLabels) {
-        const locality = extractLocality(oldLabel);
-        const city = extractCity(oldLabel);
-        const newLabel = locality === city ? trimmed : `${locality}, ${trimmed}`;
-        await renameTrailLabel(db, oldLabel, newLabel);
-      }
-      if (selectedLabels.some((l) => group.allLabels.includes(l))) {
-        setSelectedLabels([]);
-        setSelectedDisplayLabel("");
-      }
-      await reloadAreas();
-    }, "plain-text", group.label);
+    Alert.prompt(
+      "Rename Group",
+      `Current: "${group.label}"`,
+      async (newName) => {
+        if (!newName || newName.trim() === "" || newName.trim() === group.label)
+          return;
+        const trimmed = newName.trim();
+        for (const oldLabel of group.allLabels) {
+          const locality = extractLocality(oldLabel);
+          const city = extractCity(oldLabel);
+          const newLabel =
+            locality === city ? trimmed : `${locality}, ${trimmed}`;
+          await renameTrailLabel(db, oldLabel, newLabel);
+        }
+        if (selectedLabels.some((l) => group.allLabels.includes(l))) {
+          setSelectedLabels([]);
+          setSelectedDisplayLabel("");
+        }
+        await reloadAreas();
+      },
+      "plain-text",
+      group.label,
+    );
   };
 
   const getActivePreset = () => {
@@ -392,9 +400,7 @@ export default function FilterModal() {
       await renameTrailLabel(db, oldLabel, locality);
     }
 
-    const affected = selectedLabels.some((l) =>
-      dragSource.labels.includes(l),
-    );
+    const affected = selectedLabels.some((l) => dragSource.labels.includes(l));
     if (affected) {
       setSelectedLabels(newLabels);
       setSelectedDisplayLabel(newLabels[0] ?? "");
@@ -548,12 +554,7 @@ export default function FilterModal() {
                 ]}
                 onPress={() => toggleActivity(act.type)}
               >
-                <Text
-                  style={[
-                    styles.presetText,
-                    { color: colors.text },
-                  ]}
-                >
+                <Text style={[styles.presetText, { color: colors.text }]}>
                   {act.label}
                 </Text>
               </TouchableOpacity>
@@ -581,7 +582,7 @@ export default function FilterModal() {
                 style={[styles.dragBannerText, { color: colors.text }]}
                 numberOfLines={1}
               >
-                Move "{dragSource.displayLabel}"
+                Move &quot;{dragSource.displayLabel}&quot;
               </Text>
               <TouchableOpacity onPress={() => setDragSource(null)}>
                 <Feather name="x" size={18} color={colors.text} />
@@ -602,10 +603,7 @@ export default function FilterModal() {
                 color={colors.textSecondary}
               />
               <Text
-                style={[
-                  styles.dropRootText,
-                  { color: colors.textSecondary },
-                ]}
+                style={[styles.dropRootText, { color: colors.textSecondary }]}
               >
                 Move to top level
               </Text>
@@ -630,279 +628,270 @@ export default function FilterModal() {
             </Text>
           </View>
         ) : (
-            <View
-              style={[
-                styles.areaCard,
-                {
-                  backgroundColor: colors.surface,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              {areaGroups.map((group, gIdx) => {
-                const hasSubs = group.subAreas.length > 1;
-                const isExpanded = expandedGroups.has(gIdx);
-                const groupSelected = labelsMatch(
-                  selectedLabels,
-                  group.allLabels,
-                );
-                const isLast = gIdx === areaGroups.length - 1;
+          <View
+            style={[
+              styles.areaCard,
+              {
+                backgroundColor: colors.surface,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            {areaGroups.map((group, gIdx) => {
+              const hasSubs = group.subAreas.length > 1;
+              const isExpanded = expandedGroups.has(gIdx);
+              const groupSelected = labelsMatch(
+                selectedLabels,
+                group.allLabels,
+              );
+              const isLast = gIdx === areaGroups.length - 1;
 
-                if (!hasSubs) {
-                  const sub = group.subAreas[0];
-                  const isActive = labelsMatch(selectedLabels, sub.labels);
-                  const isDragSource =
-                    dragSource?.groupIdx === gIdx;
-                  const isDropTarget =
-                    dragSource !== null && dragSource.groupIdx !== gIdx;
+              if (!hasSubs) {
+                const sub = group.subAreas[0];
+                const isActive = labelsMatch(selectedLabels, sub.labels);
+                const isDragSource = dragSource?.groupIdx === gIdx;
+                const isDropTarget =
+                  dragSource !== null && dragSource.groupIdx !== gIdx;
 
-                  return (
-                    <TouchableOpacity
-                      key={gIdx}
+                return (
+                  <TouchableOpacity
+                    key={gIdx}
+                    style={[
+                      styles.areaRow,
+                      !isLast && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.borderLight,
+                      },
+                      isDragSource && { opacity: 0.4 },
+                      isDropTarget && {
+                        backgroundColor: `${colors.accent}30`,
+                      },
+                    ]}
+                    onPress={() => {
+                      if (dragSource) {
+                        handleDropOnGroup(gIdx);
+                        return;
+                      }
+                      selectArea(sub.labels, sub.fullLabel);
+                    }}
+                    onLongPress={() =>
+                      handleStartDrag(gIdx, sub.labels, sub.fullLabel)
+                    }
+                  >
+                    <View
                       style={[
-                        styles.areaRow,
+                        styles.radio,
+                        {
+                          borderColor: isActive
+                            ? colors.accent
+                            : colors.textSecondary,
+                          backgroundColor: isActive
+                            ? colors.accent
+                            : "transparent",
+                        },
+                      ]}
+                    />
+                    <Text
+                      style={[styles.areaLabel, { color: colors.text }]}
+                      numberOfLines={1}
+                    >
+                      {sub.fullLabel}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() =>
+                        handleRenameLabel(sub.labels, sub.fullLabel)
+                      }
+                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      style={styles.editButton}
+                    >
+                      <Feather
+                        name="edit-3"
+                        size={14}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                    <View
+                      style={[
+                        styles.countPill,
+                        { borderColor: colors.border, borderWidth: 1 },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.countPillText, { color: colors.text }]}
+                      >
+                        {sub.count}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              }
+
+              // const isDragSourceGroup = dragSource?.groupIdx === gIdx;
+              const isDropTargetGroup =
+                dragSource !== null && dragSource.groupIdx !== gIdx;
+
+              return (
+                <View key={gIdx}>
+                  <TouchableOpacity
+                    style={[
+                      styles.areaRow,
+                      !isExpanded &&
                         !isLast && {
                           borderBottomWidth: StyleSheet.hairlineWidth,
                           borderBottomColor: colors.borderLight,
                         },
-                        isDragSource && { opacity: 0.4 },
-                        isDropTarget && {
-                          backgroundColor: `${colors.accent}30`,
-                        },
-                      ]}
-                      onPress={() => {
-                        if (dragSource) {
-                          handleDropOnGroup(gIdx);
-                          return;
-                        }
-                        selectArea(sub.labels, sub.fullLabel);
-                      }}
-                      onLongPress={() =>
-                        handleStartDrag(gIdx, sub.labels, sub.fullLabel)
+                      isDropTargetGroup && {
+                        backgroundColor: `${colors.accent}30`,
+                      },
+                    ]}
+                    onPress={() => {
+                      if (dragSource) {
+                        handleDropOnGroup(gIdx);
+                        return;
                       }
-                    >
-                      <View
-                        style={[
-                          styles.radio,
-                          {
-                            borderColor: isActive
-                              ? colors.accent
-                              : colors.textSecondary,
-                            backgroundColor: isActive
-                              ? colors.accent
-                              : "transparent",
-                          },
-                        ]}
-                      />
-                      <Text
-                        style={[styles.areaLabel, { color: colors.text }]}
-                        numberOfLines={1}
-                      >
-                        {sub.fullLabel}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          handleRenameLabel(sub.labels, sub.fullLabel)
-                        }
-                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                        style={styles.editButton}
-                      >
-                        <Feather
-                          name="edit-3"
-                          size={14}
-                          color={colors.textSecondary}
-                        />
-                      </TouchableOpacity>
-                      <View
-                        style={[
-                          styles.countPill,
-                          { borderColor: colors.border, borderWidth: 1 },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.countPillText, { color: colors.text }]}
-                        >
-                          {sub.count}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                }
-
-                const isDragSourceGroup =
-                  dragSource?.groupIdx === gIdx;
-                const isDropTargetGroup =
-                  dragSource !== null && dragSource.groupIdx !== gIdx;
-
-                return (
-                  <View key={gIdx}>
-                    <TouchableOpacity
+                      selectArea(group.allLabels, group.label);
+                      toggleGroup(gIdx);
+                    }}
+                  >
+                    <View
                       style={[
-                        styles.areaRow,
-                        !isExpanded &&
-                          !isLast && {
-                            borderBottomWidth: StyleSheet.hairlineWidth,
-                            borderBottomColor: colors.borderLight,
-                          },
-                        isDropTargetGroup && {
-                          backgroundColor: `${colors.accent}30`,
+                        styles.radio,
+                        {
+                          borderColor: groupSelected
+                            ? colors.accent
+                            : colors.textSecondary,
+                          backgroundColor: groupSelected
+                            ? colors.accent
+                            : "transparent",
                         },
                       ]}
-                      onPress={() => {
-                        if (dragSource) {
-                          handleDropOnGroup(gIdx);
-                          return;
-                        }
-                        selectArea(group.allLabels, group.label);
-                        toggleGroup(gIdx);
-                      }}
+                    />
+                    <Text
+                      style={[
+                        styles.areaLabel,
+                        { color: colors.text, fontFamily: Fonts.medium },
+                      ]}
+                      numberOfLines={1}
                     >
-                      <View
-                        style={[
-                          styles.radio,
-                          {
-                            borderColor: groupSelected
-                              ? colors.accent
-                              : colors.textSecondary,
-                            backgroundColor: groupSelected
-                              ? colors.accent
-                              : "transparent",
-                          },
-                        ]}
+                      {group.label}
+                    </Text>
+                    <Text
+                      style={[styles.chevron, { color: colors.textSecondary }]}
+                    >
+                      {isExpanded ? "\u25B4" : "\u25BE"}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => handleRenameGroup(group)}
+                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      style={styles.editButton}
+                    >
+                      <Feather
+                        name="edit-3"
+                        size={14}
+                        color={colors.textSecondary}
                       />
-                      <Text
-                        style={[
-                          styles.areaLabel,
-                          { color: colors.text, fontFamily: Fonts.medium },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {group.label}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.chevron,
-                          { color: colors.textSecondary },
-                        ]}
-                      >
-                        {isExpanded ? "\u25B4" : "\u25BE"}
-                      </Text>
-                      <TouchableOpacity
-                        onPress={() =>
-                          handleRenameGroup(group)
-                        }
-                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                        style={styles.editButton}
-                      >
-                        <Feather
-                          name="edit-3"
-                          size={14}
-                          color={colors.textSecondary}
-                        />
-                      </TouchableOpacity>
-                      <View
-                        style={[
-                          styles.countPill,
-                          { borderColor: colors.border, borderWidth: 1 },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.countPillText, { color: colors.text }]}
-                        >
-                          {group.totalCount}
-                        </Text>
-                      </View>
                     </TouchableOpacity>
+                    <View
+                      style={[
+                        styles.countPill,
+                        { borderColor: colors.border, borderWidth: 1 },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.countPillText, { color: colors.text }]}
+                      >
+                        {group.totalCount}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
 
-                    {isExpanded &&
-                      group.subAreas.map((sub, sIdx) => {
-                        const subSelected = labelsMatch(
-                          selectedLabels,
-                          sub.labels,
-                        );
-                        const subIsLast =
-                          sIdx === group.subAreas.length - 1 && isLast;
-                        const isSubDragSource =
-                          dragSource !== null &&
-                          dragSource.groupIdx === gIdx &&
-                          labelsMatch(dragSource.labels, sub.labels);
+                  {isExpanded &&
+                    group.subAreas.map((sub, sIdx) => {
+                      const subSelected = labelsMatch(
+                        selectedLabels,
+                        sub.labels,
+                      );
+                      const subIsLast =
+                        sIdx === group.subAreas.length - 1 && isLast;
+                      const isSubDragSource =
+                        dragSource !== null &&
+                        dragSource.groupIdx === gIdx &&
+                        labelsMatch(dragSource.labels, sub.labels);
 
-                        return (
-                          <TouchableOpacity
-                            key={sIdx}
+                      return (
+                        <TouchableOpacity
+                          key={sIdx}
+                          style={[
+                            styles.areaRow,
+                            styles.subAreaRow,
+                            !subIsLast && {
+                              borderBottomWidth: StyleSheet.hairlineWidth,
+                              borderBottomColor: colors.borderLight,
+                            },
+                            isSubDragSource && { opacity: 0.4 },
+                          ]}
+                          onPress={() => selectArea(sub.labels, sub.fullLabel)}
+                          onLongPress={() =>
+                            handleStartDrag(gIdx, sub.labels, sub.fullLabel)
+                          }
+                        >
+                          <View
                             style={[
-                              styles.areaRow,
-                              styles.subAreaRow,
-                              !subIsLast && {
-                                borderBottomWidth: StyleSheet.hairlineWidth,
-                                borderBottomColor: colors.borderLight,
+                              styles.radioSmall,
+                              {
+                                borderColor: subSelected
+                                  ? colors.accent
+                                  : colors.textSecondary,
+                                backgroundColor: subSelected
+                                  ? colors.accent
+                                  : "transparent",
                               },
-                              isSubDragSource && { opacity: 0.4 },
                             ]}
-                            onPress={() =>
-                              selectArea(sub.labels, sub.fullLabel)
-                            }
-                            onLongPress={() =>
-                              handleStartDrag(gIdx, sub.labels, sub.fullLabel)
-                            }
+                          />
+                          <Text
+                            style={[styles.areaLabel, { color: colors.text }]}
+                            numberOfLines={1}
                           >
-                            <View
-                              style={[
-                                styles.radioSmall,
-                                {
-                                  borderColor: subSelected
-                                    ? colors.accent
-                                    : colors.textSecondary,
-                                  backgroundColor: subSelected
-                                    ? colors.accent
-                                    : "transparent",
-                                },
-                              ]}
+                            {sub.label}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() =>
+                              handleRenameLabel(sub.labels, sub.fullLabel)
+                            }
+                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                            style={styles.editButton}
+                          >
+                            <Feather
+                              name="edit-3"
+                              size={14}
+                              color={colors.textSecondary}
                             />
+                          </TouchableOpacity>
+                          <View
+                            style={[
+                              styles.countPill,
+                              {
+                                borderColor: colors.border,
+                                borderWidth: 1,
+                              },
+                            ]}
+                          >
                             <Text
-                              style={[styles.areaLabel, { color: colors.text }]}
-                              numberOfLines={1}
-                            >
-                              {sub.label}
-                            </Text>
-                            <TouchableOpacity
-                              onPress={() =>
-                                handleRenameLabel(sub.labels, sub.fullLabel)
-                              }
-                              hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                              style={styles.editButton}
-                            >
-                              <Feather
-                                name="edit-3"
-                                size={14}
-                                color={colors.textSecondary}
-                              />
-                            </TouchableOpacity>
-                            <View
                               style={[
-                                styles.countPill,
-                                {
-                                  borderColor: colors.border,
-                                  borderWidth: 1,
-                                },
+                                styles.countPillText,
+                                { color: colors.text },
                               ]}
                             >
-                              <Text
-                                style={[
-                                  styles.countPillText,
-                                  { color: colors.text },
-                                ]}
-                              >
-                                {sub.count}
-                              </Text>
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-                  </View>
-                );
-              })}
-            </View>
+                              {sub.count}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                </View>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
 
