@@ -3,12 +3,17 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { getCachedLabel, setCachedLabel } from './db';
 import type { Coordinate } from './geo';
 
-export async function resolveLabel(
+export async function resolveLocation(
   db: SQLiteDatabase,
   center: Coordinate,
-): Promise<string> {
+): Promise<{ country: string; region: string; city: string; label: string }> {
   const cached = await getCachedLabel(db, center.latitude, center.longitude);
-  if (cached) return cached;
+  if (cached) {
+    const parts = cached.split('|');
+    if (parts.length === 4) {
+      return { country: parts[0], region: parts[1], city: parts[2], label: parts[3] };
+    }
+  }
 
   try {
     const results = await Location.reverseGeocodeAsync({
@@ -17,20 +22,33 @@ export async function resolveLabel(
     });
     if (results.length > 0) {
       const addr = results[0];
+      const country = addr.country || 'Unknown';
+      const region = addr.region || 'Unknown';
+      const city = addr.city || addr.district || 'Unknown';
+
+      // Build display label (existing dedup logic for trail list display)
       const raw = [addr.district, addr.city, addr.region]
         .filter((v): v is string => !!v && v !== 'null');
-      // Deduplicate exact matches AND drop "Minsk Region" when "Minsk" exists
-      const parts = raw.filter(
+      const labelParts = raw.filter(
         (v, i, a) =>
           a.indexOf(v) === i &&
           !a.some((other, j) => j !== i && v !== other && v.startsWith(other)),
       );
-      const label =
-        parts.length > 0 ? parts.join(', ') : addr.name || 'Unknown';
-      await setCachedLabel(db, center.latitude, center.longitude, label);
-      return label;
+      const label = labelParts.length > 0 ? labelParts.join(', ') : addr.name || 'Unknown';
+
+      await setCachedLabel(db, center.latitude, center.longitude, `${country}|${region}|${city}|${label}`);
+      return { country, region, city, label };
     }
   } catch {}
 
-  return `${center.latitude.toFixed(1)}, ${center.longitude.toFixed(1)}`;
+  const fallback = `${center.latitude.toFixed(1)}, ${center.longitude.toFixed(1)}`;
+  return { country: 'Unknown', region: 'Unknown', city: fallback, label: fallback };
+}
+
+export async function resolveLabel(
+  db: SQLiteDatabase,
+  center: Coordinate,
+): Promise<string> {
+  const loc = await resolveLocation(db, center);
+  return loc.label;
 }

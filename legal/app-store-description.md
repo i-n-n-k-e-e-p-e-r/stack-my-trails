@@ -38,11 +38,11 @@ KEY FEATURES
 - Show your current location on the trail map to discover new routes and unvisited directions
 - Built-in GPS spoofing filter for accurate route display in affected areas
 - Full dark mode support
-- Works entirely offline — no account, no subscription, no cloud
+- No account, no subscription, no cloud — works offline after initial import
 
 YOUR DATA, YOUR DEVICE
 
-Stack My Trails stores everything locally on your device. No accounts, no servers, no tracking. Your workout data is yours — it lives on your device, not on our servers (we don't have any).
+Stack My Trails stores everything locally on your device. No accounts, no servers, no tracking. Your workout data is yours. The only network request the app makes is to Apple's geocoding service during import to convert route coordinates into place names (e.g., city and region). Once imported, everything works offline.
 
 POSTER THEMES
 
@@ -68,6 +68,6 @@ Initial release.
 
 ## App Review Notes
 
-This app reads workout route data from Apple Health to visualize GPS routes on a map. Users must explicitly tap "Import" to load their workouts. The app does not write to HealthKit, does not access data in the background, and does not transmit any data to external servers. All data is stored locally on the device.
+This app reads workout route data from Apple Health to visualize GPS routes on a map. Users must explicitly tap "Import" to load their workouts. The app does not write to HealthKit and does not access data in the background. During import, route center coordinates are sent to Apple's geocoding service to resolve place names. No other data is transmitted to external servers. All data is stored locally on the device.
 
 To test: Import workouts from Apple Health via Settings tab, then view routes on the Stack tab. Tap the export button to create a poster.

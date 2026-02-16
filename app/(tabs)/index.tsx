@@ -17,8 +17,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { getAllTrailSummaries, getTrailCoordinates } from "@/lib/db";
-import { resolveLabel } from "@/lib/geocode";
-import { bboxCenter, smoothCoordinates } from "@/lib/geo";
+import { smoothCoordinates } from "@/lib/geo";
 import type { TrailSummary, Coordinate } from "@/lib/geo";
 import { useTranslation } from "@/contexts/language";
 
@@ -84,7 +83,6 @@ export default function TrailsScreen() {
   const [selectedActivities, setSelectedActivities] = useState<number[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedCoords, setSelectedCoords] = useState<Coordinate[]>([]);
-  const [labels, setLabels] = useState<Map<string, string>>(new Map());
   const mapReady = useRef(false);
 
   const { height: windowHeight } = useWindowDimensions();
@@ -166,27 +164,6 @@ export default function TrailsScreen() {
     return () => clearTimeout(timer);
   }, [selectedCoords, fitMap]);
 
-  useEffect(() => {
-    if (trails.length === 0) return;
-    let cancelled = false;
-
-    async function resolveLabels() {
-      const newLabels = new Map(labels);
-      for (const trail of trails) {
-        if (newLabels.has(trail.workoutId) || cancelled) continue;
-        const center = bboxCenter(trail.boundingBox);
-        const label = await resolveLabel(db, center);
-        newLabels.set(trail.workoutId, label);
-      }
-      if (!cancelled) setLabels(newLabels);
-    }
-
-    resolveLabels();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trails, db]);
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
@@ -195,7 +172,7 @@ export default function TrailsScreen() {
   const renderItem = useCallback(
     ({ item }: { item: TrailSummary }) => {
       const isActive = item.workoutId === selectedId;
-      const label = labels.get(item.workoutId);
+      const label = item.locationCity;
       const temp = formatTemp(item.temperature);
 
       return (
@@ -231,7 +208,7 @@ export default function TrailsScreen() {
                   style={[styles.trailSubtitle, { color: colors.text }]}
                   numberOfLines={1}
                 >
-                  {label ?? t("trails.labelLoading")}
+                  {label ?? ""}
                 </Text>
               </View>
             </View>
@@ -258,7 +235,7 @@ export default function TrailsScreen() {
         </TouchableOpacity>
       );
     },
-    [selectedId, labels, colors, handleSelect, t],
+    [selectedId, colors, handleSelect, t],
   );
 
   if (loading) {

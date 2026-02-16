@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -6,22 +6,15 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { Feather } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
-import {
-  getAllTrailSummaries,
-  renameTrailLabel,
-  getTrailDateRange,
-} from "@/lib/db";
-import { getFilters, setFilters } from "@/lib/filter-store";
-import type { TrailSummary } from "@/lib/geo";
+import { getDistinctAreas, getTrailDateRange, getLastTrailLocation } from "@/lib/db";
+import { getFilters, setFilters, hasActiveFilters } from "@/lib/filter-store";
 import { useTranslation } from "@/contexts/language";
 
 const PRESETS = [
@@ -33,81 +26,28 @@ const PRESETS = [
 ] as const;
 
 const ACTIVITIES = [
-  { type: 37, labelKey: "activity.run" },
-  { type: 52, labelKey: "activity.walk" },
-  { type: 13, labelKey: "activity.cycle" },
-  { type: 24, labelKey: "activity.hike" },
-  { type: 46, labelKey: "activity.swim" },
+  { type: 37, labelKey: "activity.running" },
+  { type: 52, labelKey: "activity.walking" },
+  { type: 13, labelKey: "activity.cycling" },
+  { type: 24, labelKey: "activity.hiking" },
+  { type: 46, labelKey: "activity.swimming" },
 ] as const;
 
-interface SubArea {
-  label: string;
-  fullLabel: string;
+interface CityEntry {
+  city: string;
   count: number;
-  labels: string[];
 }
 
-interface AreaGroup {
-  label: string;
-  subAreas: SubArea[];
+interface RegionGroup {
+  region: string;
+  cities: CityEntry[];
   totalCount: number;
-  allLabels: string[];
 }
 
-function extractCity(label: string): string {
-  const idx = label.lastIndexOf(", ");
-  return idx >= 0 ? label.substring(idx + 2) : label;
-}
-
-function extractLocality(label: string): string {
-  const idx = label.lastIndexOf(", ");
-  return idx >= 0 ? label.substring(0, idx) : label;
-}
-
-function buildAreaGroups(summaries: TrailSummary[], unknownLabel: string): AreaGroup[] {
-  const byLabel = new Map<string, number>();
-  for (const s of summaries) {
-    const label = s.locationLabel || unknownLabel;
-    byLabel.set(label, (byLabel.get(label) ?? 0) + 1);
-  }
-
-  const cityMap = new Map<string, { label: string; count: number }[]>();
-  for (const [label, count] of byLabel) {
-    const city = extractCity(label);
-    if (!cityMap.has(city)) cityMap.set(city, []);
-    cityMap.get(city)!.push({ label, count });
-  }
-
-  const result: AreaGroup[] = [];
-  for (const [city, entries] of cityMap) {
-    const localityMap = new Map<string, { count: number; labels: string[] }>();
-    for (const e of entries) {
-      const locality = extractLocality(e.label);
-      const existing = localityMap.get(locality);
-      if (existing) {
-        existing.count += e.count;
-        existing.labels.push(e.label);
-      } else {
-        localityMap.set(locality, { count: e.count, labels: [e.label] });
-      }
-    }
-
-    const subAreas: SubArea[] = [...localityMap.entries()]
-      .map(([locality, data]) => ({
-        label: locality,
-        fullLabel: locality === city ? city : `${locality}, ${city}`,
-        count: data.count,
-        labels: data.labels,
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    const totalCount = subAreas.reduce((s, a) => s + a.count, 0);
-    const allLabels = entries.map((e) => e.label);
-
-    result.push({ label: city, subAreas, totalCount, allLabels });
-  }
-
-  return result.sort((a, b) => b.totalCount - a.totalCount);
+interface CountryGroup {
+  country: string;
+  regions: RegionGroup[];
+  totalCount: number;
 }
 
 export default function FilterModal() {
@@ -121,52 +61,79 @@ export default function FilterModal() {
 
   const [startDate, setStartDate] = useState(currentFilters.startDate);
   const [endDate, setEndDate] = useState(currentFilters.endDate);
-  const [selectedLabels, setSelectedLabels] = useState<string[]>(
-    currentFilters.areaLabels ?? [],
+  const [selectedCountry, setSelectedCountry] = useState<string | null>(
+    currentFilters.country,
   );
-  const [selectedDisplayLabel, setSelectedDisplayLabel] = useState<string>(
-    currentFilters.areaLabel ?? "",
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(
+    currentFilters.region,
+  );
+  const [selectedCity, setSelectedCity] = useState<string | null>(
+    currentFilters.city,
   );
   const [selectedActivities, setSelectedActivities] = useState<number[]>(
     currentFilters.activityTypes ?? [],
   );
-  const [allSummaries, setAllSummaries] = useState<TrailSummary[]>([]);
+  const [areas, setAreas] = useState<
+    { country: string; region: string; city: string; count: number }[]
+  >([]);
   const [loadingAreas, setLoadingAreas] = useState(true);
-  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  const [expandedCountries, setExpandedCountries] = useState<Set<number>>(
+    new Set(),
+  );
+  const [expandedRegions, setExpandedRegions] = useState<Set<string>>(
+    new Set(),
+  );
   const [dbDateRange, setDbDateRange] = useState<{
     minDate: Date;
     maxDate: Date;
   } | null>(null);
 
-  const areaGroups = useMemo(() => {
-    let filtered = allSummaries;
-    filtered = filtered.filter((s) => {
-      const d = new Date(s.startDate);
-      return d >= startDate && d <= endDate;
-    });
-    if (selectedActivities.length > 0) {
-      filtered = filtered.filter((s) =>
-        selectedActivities.includes(s.activityType),
-      );
-    }
-    return buildAreaGroups(filtered, t("filter.unknown"));
-  }, [allSummaries, startDate, endDate, selectedActivities, t]);
+  const countryGroups = useMemo((): CountryGroup[] => {
+    const countryMap = new Map<
+      string,
+      Map<string, { city: string; count: number }[]>
+    >();
 
-  const reloadAreas = async () => {
-    const summaries = await getAllTrailSummaries(db);
-    setAllSummaries(summaries);
-    setLoadingAreas(false);
-  };
+    for (const a of areas) {
+      if (!countryMap.has(a.country)) countryMap.set(a.country, new Map());
+      const regionMap = countryMap.get(a.country)!;
+      if (!regionMap.has(a.region)) regionMap.set(a.region, []);
+      regionMap.get(a.region)!.push({ city: a.city, count: a.count });
+    }
+
+    const result: CountryGroup[] = [];
+    for (const [country, regionMap] of countryMap) {
+      const regions: RegionGroup[] = [];
+      for (const [region, cities] of regionMap) {
+        const sorted = cities.sort((a, b) => b.count - a.count);
+        const totalCount = sorted.reduce((s, c) => s + c.count, 0);
+        regions.push({ region, cities: sorted, totalCount });
+      }
+      regions.sort((a, b) => b.totalCount - a.totalCount);
+      const totalCount = regions.reduce((s, r) => s + r.totalCount, 0);
+      result.push({ country, regions, totalCount });
+    }
+
+    return result.sort((a, b) => b.totalCount - a.totalCount);
+  }, [areas]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadAreas() {
-      const summaries = await getAllTrailSummaries(db);
-      const dateRange = await getTrailDateRange(db);
+      setLoadingAreas(true);
+      const [distinctAreas, dateRange] = await Promise.all([
+        getDistinctAreas(
+          db,
+          startDate,
+          endDate,
+          selectedActivities.length > 0 ? selectedActivities : null,
+        ),
+        getTrailDateRange(db),
+      ]);
       if (cancelled) return;
 
-      setAllSummaries(summaries);
+      setAreas(distinctAreas);
       setDbDateRange(dateRange);
       setLoadingAreas(false);
     }
@@ -175,99 +142,64 @@ export default function FilterModal() {
     return () => {
       cancelled = true;
     };
-  }, [db]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [db, startDate.getTime(), endDate.getTime(), selectedActivities]);
 
-  // Auto-expand group with selected labels on initial load
+  // Auto-select last workout's city when no filter is active
   useEffect(() => {
-    if (loadingAreas || selectedLabels.length === 0) return;
-    for (let i = 0; i < areaGroups.length; i++) {
-      if (areaGroups[i].allLabels.some((l) => selectedLabels.includes(l))) {
-        setExpandedGroups(new Set([i]));
+    if (loadingAreas || hasActiveFilters()) return;
+
+    getLastTrailLocation(db).then((loc) => {
+      if (!loc) return;
+      setSelectedCountry(loc.country);
+      setSelectedRegion(loc.region);
+      setSelectedCity(loc.city);
+    });
+  }, [loadingAreas, db]);
+
+  // Auto-expand to match selection on initial load only
+  const didAutoExpand = useRef(false);
+  useEffect(() => {
+    if (loadingAreas || didAutoExpand.current) return;
+    if (!selectedCountry) return;
+    didAutoExpand.current = true;
+
+    for (let cIdx = 0; cIdx < countryGroups.length; cIdx++) {
+      if (countryGroups[cIdx].country === selectedCountry) {
+        setExpandedCountries(new Set([cIdx]));
+        if (selectedRegion) {
+          for (let rIdx = 0; rIdx < countryGroups[cIdx].regions.length; rIdx++) {
+            if (countryGroups[cIdx].regions[rIdx].region === selectedRegion) {
+              setExpandedRegions(new Set([`${cIdx}-${rIdx}`]));
+              break;
+            }
+          }
+        }
         break;
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingAreas]);
+  }, [loadingAreas, selectedCountry]);
 
-  const doRename = async (labels: string[], newLabel: string) => {
-    for (const oldLabel of labels) {
-      await renameTrailLabel(db, oldLabel, newLabel);
-    }
-    const affected = selectedLabels.some((l) => labels.includes(l));
-    if (affected) {
-      setSelectedLabels([newLabel]);
-      setSelectedDisplayLabel(newLabel);
-    }
-    await reloadAreas();
+  const selectCountry = (country: string) => {
+    setSelectedCountry(country);
+    setSelectedRegion(null);
+    setSelectedCity(null);
   };
 
-  const handleRenameLabel = (labels: string[], currentDisplay: string) => {
-    Alert.prompt(
-      t("filter.renameAreaTitle"),
-      t("filter.renameCurrent", { name: currentDisplay }),
-      async (newName) => {
-        if (
-          !newName ||
-          newName.trim() === "" ||
-          newName.trim() === currentDisplay
-        )
-          return;
-        const trimmed = newName.trim();
-
-        // Check if this label already exists
-        const existingLabels = areaGroups.flatMap((g) =>
-          g.subAreas.flatMap((s) => s.labels),
-        );
-        const willMerge = existingLabels.some(
-          (l) => l === trimmed && !labels.includes(l),
-        );
-
-        if (willMerge) {
-          Alert.alert(
-            t("filter.mergeTitle"),
-            t("filter.mergeMessage", { name: trimmed }),
-            [
-              { text: t("common.cancel"), style: "cancel" },
-              { text: t("filter.merge"), onPress: () => doRename(labels, trimmed) },
-            ],
-          );
-        } else {
-          await doRename(labels, trimmed);
-        }
-      },
-      "plain-text",
-      currentDisplay,
-    );
+  const selectRegion = (country: string, region: string) => {
+    setSelectedCountry(country);
+    setSelectedRegion(region);
+    setSelectedCity(null);
   };
 
-  const handleRenameGroup = (group: AreaGroup) => {
-    Alert.prompt(
-      t("filter.renameGroupTitle"),
-      t("filter.renameCurrent", { name: group.label }),
-      async (newName) => {
-        if (!newName || newName.trim() === "" || newName.trim() === group.label)
-          return;
-        const trimmed = newName.trim();
-        for (const oldLabel of group.allLabels) {
-          const locality = extractLocality(oldLabel);
-          const city = extractCity(oldLabel);
-          const newLabel =
-            locality === city ? trimmed : `${locality}, ${trimmed}`;
-          await renameTrailLabel(db, oldLabel, newLabel);
-        }
-        if (selectedLabels.some((l) => group.allLabels.includes(l))) {
-          setSelectedLabels([]);
-          setSelectedDisplayLabel("");
-        }
-        await reloadAreas();
-      },
-      "plain-text",
-      group.label,
-    );
+  const selectCity = (country: string, region: string, city: string) => {
+    setSelectedCountry(country);
+    setSelectedRegion(region);
+    setSelectedCity(city);
   };
 
   const getActivePresetDays = () => {
-    // Check if "All" preset is active by comparing with database date range
     if (dbDateRange) {
       const isAllPreset =
         Math.abs(startDate.getTime() - dbDateRange.minDate.getTime()) < 1000 &&
@@ -275,7 +207,6 @@ export default function FilterModal() {
       if (isAllPreset) return 3650;
     }
 
-    // Check other presets by day difference
     const diffMs = endDate.getTime() - startDate.getTime();
     const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000));
     return (
@@ -287,14 +218,12 @@ export default function FilterModal() {
   const handlePreset = async (days: number) => {
     const now = new Date();
 
-    // For "All" preset, use actual database date range
     if (days >= 3650) {
       const dateRange = await getTrailDateRange(db);
       if (dateRange) {
         setStartDate(dateRange.minDate);
         setEndDate(dateRange.maxDate);
       } else {
-        // Fallback if no data
         const start = new Date(
           now.getTime() - (days / 2) * 24 * 60 * 60 * 1000,
         );
@@ -303,17 +232,11 @@ export default function FilterModal() {
         setEndDate(end);
       }
     } else {
-      // Other presets: backwards from today
       const end = now;
       const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
       setStartDate(start);
       setEndDate(end);
     }
-  };
-
-  const selectArea = (labels: string[], displayLabel: string) => {
-    setSelectedLabels(labels);
-    setSelectedDisplayLabel(displayLabel);
   };
 
   const toggleActivity = (type: number) => {
@@ -322,108 +245,20 @@ export default function FilterModal() {
     );
   };
 
-  // Drag and drop: pick up and place
-  const [dragSource, setDragSource] = useState<{
-    groupIdx: number;
-    labels: string[];
-    displayLabel: string;
-  } | null>(null);
-
-  const handleStartDrag = (
-    groupIdx: number,
-    labels: string[],
-    displayLabel: string,
-  ) => {
-    setDragSource({ groupIdx, labels, displayLabel });
-  };
-
-  const handleDropOnGroup = async (targetGroupIdx: number) => {
-    if (!dragSource || targetGroupIdx === dragSource.groupIdx) {
-      setDragSource(null);
-      return;
-    }
-
-    const targetCity = areaGroups[targetGroupIdx].label;
-    const targetAllLabels = areaGroups[targetGroupIdx].allLabels;
-
-    // Check for merges
-    const newLabels = dragSource.labels.map(
-      (l) => `${extractLocality(l)}, ${targetCity}`,
-    );
-    const willMerge = newLabels.some((nl) => targetAllLabels.includes(nl));
-
-    const doMove = async () => {
-      for (const oldLabel of dragSource.labels) {
-        const newLabel = `${extractLocality(oldLabel)}, ${targetCity}`;
-        await renameTrailLabel(db, oldLabel, newLabel);
-      }
-      const affected = selectedLabels.some((l) =>
-        dragSource.labels.includes(l),
-      );
-      if (affected) {
-        setSelectedLabels([]);
-        setSelectedDisplayLabel("");
-      }
-      setDragSource(null);
-      await reloadAreas();
-    };
-
-    if (willMerge) {
-      Alert.alert(
-        t("filter.mergeTitle"),
-        t("filter.mergeDragMessage", { city: targetCity }),
-        [
-          {
-            text: t("common.cancel"),
-            style: "cancel",
-            onPress: () => setDragSource(null),
-          },
-          { text: t("filter.merge"), onPress: doMove },
-        ],
-      );
-    } else {
-      await doMove();
-    }
-  };
-
-  const handleDropToRoot = async () => {
-    if (!dragSource) return;
-
-    const newLabels: string[] = [];
-    for (const oldLabel of dragSource.labels) {
-      const locality = extractLocality(oldLabel);
-      const city = extractCity(oldLabel);
-      if (locality === city) {
-        // Already at root level, nothing to do
-        newLabels.push(oldLabel);
-        continue;
-      }
-      newLabels.push(locality);
-      await renameTrailLabel(db, oldLabel, locality);
-    }
-
-    const affected = selectedLabels.some((l) => dragSource.labels.includes(l));
-    if (affected) {
-      setSelectedLabels(newLabels);
-      setSelectedDisplayLabel(newLabels[0] ?? "");
-    }
-    setDragSource(null);
-    await reloadAreas();
-  };
-
   const handleApply = () => {
     setFilters({
       startDate,
       endDate,
-      areaLabels: selectedLabels.length > 0 ? selectedLabels : null,
-      areaLabel: selectedDisplayLabel || null,
+      country: selectedCountry,
+      region: selectedRegion,
+      city: selectedCity,
       activityTypes: selectedActivities.length > 0 ? selectedActivities : null,
     });
     router.back();
   };
 
-  const toggleGroup = (idx: number) => {
-    setExpandedGroups((prev) => {
+  const toggleCountry = (idx: number) => {
+    setExpandedCountries((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
       else next.add(idx);
@@ -431,12 +266,293 @@ export default function FilterModal() {
     });
   };
 
-  const labelsMatch = (a: string[], b: string[]): boolean => {
-    if (a.length !== b.length) return false;
-    return a.every((l) => b.includes(l));
+  const toggleRegion = (key: string) => {
+    setExpandedRegions((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
   };
 
   const activePresetDays = getActivePresetDays();
+
+  const renderCountryGroup = (group: CountryGroup, cIdx: number) => {
+    const isLast = cIdx === countryGroups.length - 1;
+    const isExpanded = expandedCountries.has(cIdx);
+    const countrySelected =
+      selectedCountry === group.country && !selectedRegion && !selectedCity;
+    const singleRegion = group.regions.length === 1;
+
+    return (
+      <View key={cIdx}>
+        {/* Country row */}
+        <TouchableOpacity
+          style={[
+            styles.areaRow,
+            !isExpanded &&
+              !isLast && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: colors.borderLight,
+              },
+          ]}
+          onPress={() => {
+            const isCurrentCountry = selectedCountry === group.country;
+            const hasSubSelection = isCurrentCountry && (selectedRegion || selectedCity);
+            if (hasSubSelection) {
+              // Elevate to country-level selection, keep expanded
+              selectCountry(group.country);
+            } else {
+              selectCountry(group.country);
+              toggleCountry(cIdx);
+            }
+          }}
+        >
+          <View
+            style={[
+              styles.radio,
+              {
+                borderColor: countrySelected
+                  ? colors.accent
+                  : colors.textSecondary,
+                backgroundColor: countrySelected
+                  ? colors.accent
+                  : "transparent",
+              },
+            ]}
+          />
+          <Text
+            style={[
+              styles.areaLabel,
+              { color: colors.text, fontFamily: Fonts.bold },
+            ]}
+            numberOfLines={1}
+          >
+            {group.country}
+          </Text>
+          <Text style={[styles.chevron, { color: colors.textSecondary }]}>
+            {isExpanded ? "\u25B4" : "\u25BE"}
+          </Text>
+          <View
+            style={[
+              styles.countPill,
+              { borderColor: colors.border, borderWidth: 1 },
+            ]}
+          >
+            <Text style={[styles.countPillText, { color: colors.text }]}>
+              {group.totalCount}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Expanded content */}
+        {isExpanded && singleRegion
+          ? // Single-region with multiple cities → skip region level, show cities directly
+            group.regions[0].cities.map((city, cityIdx) => {
+              const cityIsLast =
+                cityIdx === group.regions[0].cities.length - 1 && isLast;
+              const cityActive =
+                selectedCountry === group.country &&
+                selectedRegion === group.regions[0].region &&
+                selectedCity === city.city;
+
+              return (
+                <TouchableOpacity
+                  key={cityIdx}
+                  style={[
+                    styles.areaRow,
+                    styles.subAreaRow,
+                    !cityIsLast && {
+                      borderBottomWidth: StyleSheet.hairlineWidth,
+                      borderBottomColor: colors.borderLight,
+                    },
+                  ]}
+                  onPress={() =>
+                    selectCity(
+                      group.country,
+                      group.regions[0].region,
+                      city.city,
+                    )
+                  }
+                >
+                  <View
+                    style={[
+                      styles.radioSmall,
+                      {
+                        borderColor: cityActive
+                          ? colors.accent
+                          : colors.textSecondary,
+                        backgroundColor: cityActive
+                          ? colors.accent
+                          : "transparent",
+                      },
+                    ]}
+                  />
+                  <Text
+                    style={[styles.areaLabel, { color: colors.text }]}
+                    numberOfLines={1}
+                  >
+                    {city.city}
+                  </Text>
+                  <View
+                    style={[
+                      styles.countPill,
+                      { borderColor: colors.border, borderWidth: 1 },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.countPillText, { color: colors.text }]}
+                    >
+                      {city.count}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          : // Multi-region → full 3-level
+            isExpanded &&
+            group.regions.map((region, rIdx) => {
+              const regionKey = `${cIdx}-${rIdx}`;
+              const regionExpanded = expandedRegions.has(regionKey);
+              const regionSelected =
+                selectedCountry === group.country &&
+                selectedRegion === region.region &&
+                !selectedCity;
+              const regionIsLastInGroup = rIdx === group.regions.length - 1;
+
+              return (
+                <View key={rIdx}>
+                  {/* Region row */}
+                  <TouchableOpacity
+                    style={[
+                      styles.areaRow,
+                      styles.subAreaRow,
+                      !regionExpanded &&
+                        !(regionIsLastInGroup && isLast) && {
+                          borderBottomWidth: StyleSheet.hairlineWidth,
+                          borderBottomColor: colors.borderLight,
+                        },
+                    ]}
+                    onPress={() => {
+                      selectRegion(group.country, region.region);
+                      toggleRegion(regionKey);
+                    }}
+                  >
+                    <View
+                      style={[
+                        styles.radioSmall,
+                        {
+                          borderColor: regionSelected
+                            ? colors.accent
+                            : colors.textSecondary,
+                          backgroundColor: regionSelected
+                            ? colors.accent
+                            : "transparent",
+                        },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.areaLabel,
+                        { color: colors.text, fontFamily: Fonts.medium },
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {region.region}
+                    </Text>
+                    <Text
+                      style={[styles.chevron, { color: colors.textSecondary }]}
+                    >
+                      {regionExpanded ? "\u25B4" : "\u25BE"}
+                    </Text>
+                    <View
+                      style={[
+                        styles.countPill,
+                        { borderColor: colors.border, borderWidth: 1 },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.countPillText, { color: colors.text }]}
+                      >
+                        {region.totalCount}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* City rows */}
+                  {regionExpanded &&
+                    region.cities.map((city, cityIdx) => {
+                      const cityIsLast =
+                        cityIdx === region.cities.length - 1 &&
+                        regionIsLastInGroup &&
+                        isLast;
+                      const cityActive =
+                        selectedCountry === group.country &&
+                        selectedRegion === region.region &&
+                        selectedCity === city.city;
+
+                      return (
+                        <TouchableOpacity
+                          key={cityIdx}
+                          style={[
+                            styles.areaRow,
+                            styles.subSubAreaRow,
+                            !cityIsLast && {
+                              borderBottomWidth: StyleSheet.hairlineWidth,
+                              borderBottomColor: colors.borderLight,
+                            },
+                          ]}
+                          onPress={() =>
+                            selectCity(
+                              group.country,
+                              region.region,
+                              city.city,
+                            )
+                          }
+                        >
+                          <View
+                            style={[
+                              styles.radioSmall,
+                              {
+                                borderColor: cityActive
+                                  ? colors.accent
+                                  : colors.textSecondary,
+                                backgroundColor: cityActive
+                                  ? colors.accent
+                                  : "transparent",
+                              },
+                            ]}
+                          />
+                          <Text
+                            style={[styles.areaLabel, { color: colors.text }]}
+                            numberOfLines={1}
+                          >
+                            {city.city}
+                          </Text>
+                          <View
+                            style={[
+                              styles.countPill,
+                              { borderColor: colors.border, borderWidth: 1 },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.countPillText,
+                                { color: colors.text },
+                              ]}
+                            >
+                              {city.count}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                </View>
+              );
+            })}
+      </View>
+    );
+  };
 
   return (
     <View
@@ -569,49 +685,6 @@ export default function FilterModal() {
           {t("filter.areas")}
         </Text>
 
-        {dragSource && (
-          <View style={styles.dragBannerWrap}>
-            <View
-              style={[
-                styles.dragBanner,
-                {
-                  backgroundColor: colors.accent,
-                  borderColor: colors.activeSelectionBorder,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.dragBannerText, { color: colors.text }]}
-                numberOfLines={1}
-              >
-                {t("filter.moveLabel", { label: dragSource.displayLabel })}
-              </Text>
-              <TouchableOpacity onPress={() => setDragSource(null)}>
-                <Feather name="x" size={18} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            <TouchableOpacity
-              style={[
-                styles.dropRootZone,
-                {
-                  borderColor: colors.border,
-                },
-              ]}
-              onPress={handleDropToRoot}
-            >
-              <Feather
-                name="corner-left-up"
-                size={14}
-                color={colors.textSecondary}
-              />
-              <Text
-                style={[styles.dropRootText, { color: colors.textSecondary }]}
-              >
-                {t("filter.moveToTop")}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        )}
         {loadingAreas ? (
           <View style={styles.areaLoading}>
             <ActivityIndicator size="small" color={colors.accent} />
@@ -621,7 +694,7 @@ export default function FilterModal() {
               {t("filter.loadingAreas")}
             </Text>
           </View>
-        ) : areaGroups.length === 0 ? (
+        ) : countryGroups.length === 0 ? (
           <View style={styles.areaLoading}>
             <Text
               style={[styles.areaLoadingText, { color: colors.textSecondary }]}
@@ -639,260 +712,9 @@ export default function FilterModal() {
               },
             ]}
           >
-            {areaGroups.map((group, gIdx) => {
-              const hasSubs = group.subAreas.length > 1;
-              const isExpanded = expandedGroups.has(gIdx);
-              const groupSelected = labelsMatch(
-                selectedLabels,
-                group.allLabels,
-              );
-              const isLast = gIdx === areaGroups.length - 1;
-
-              if (!hasSubs) {
-                const sub = group.subAreas[0];
-                const isActive = labelsMatch(selectedLabels, sub.labels);
-                const isDragSource = dragSource?.groupIdx === gIdx;
-                const isDropTarget =
-                  dragSource !== null && dragSource.groupIdx !== gIdx;
-
-                return (
-                  <TouchableOpacity
-                    key={gIdx}
-                    style={[
-                      styles.areaRow,
-                      !isLast && {
-                        borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderBottomColor: colors.borderLight,
-                      },
-                      isDragSource && { opacity: 0.4 },
-                      isDropTarget && {
-                        backgroundColor: `${colors.accent}30`,
-                      },
-                    ]}
-                    onPress={() => {
-                      if (dragSource) {
-                        handleDropOnGroup(gIdx);
-                        return;
-                      }
-                      selectArea(sub.labels, sub.fullLabel);
-                    }}
-                    onLongPress={() =>
-                      handleStartDrag(gIdx, sub.labels, sub.fullLabel)
-                    }
-                  >
-                    <View
-                      style={[
-                        styles.radio,
-                        {
-                          borderColor: isActive
-                            ? colors.accent
-                            : colors.textSecondary,
-                          backgroundColor: isActive
-                            ? colors.accent
-                            : "transparent",
-                        },
-                      ]}
-                    />
-                    <Text
-                      style={[styles.areaLabel, { color: colors.text }]}
-                      numberOfLines={1}
-                    >
-                      {sub.fullLabel}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() =>
-                        handleRenameLabel(sub.labels, sub.fullLabel)
-                      }
-                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                      style={styles.editButton}
-                    >
-                      <Feather
-                        name="edit-3"
-                        size={14}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-                    <View
-                      style={[
-                        styles.countPill,
-                        { borderColor: colors.border, borderWidth: 1 },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.countPillText, { color: colors.text }]}
-                      >
-                        {sub.count}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }
-
-              // const isDragSourceGroup = dragSource?.groupIdx === gIdx;
-              const isDropTargetGroup =
-                dragSource !== null && dragSource.groupIdx !== gIdx;
-
-              return (
-                <View key={gIdx}>
-                  <TouchableOpacity
-                    style={[
-                      styles.areaRow,
-                      !isExpanded &&
-                        !isLast && {
-                          borderBottomWidth: StyleSheet.hairlineWidth,
-                          borderBottomColor: colors.borderLight,
-                        },
-                      isDropTargetGroup && {
-                        backgroundColor: `${colors.accent}30`,
-                      },
-                    ]}
-                    onPress={() => {
-                      if (dragSource) {
-                        handleDropOnGroup(gIdx);
-                        return;
-                      }
-                      selectArea(group.allLabels, group.label);
-                      toggleGroup(gIdx);
-                    }}
-                  >
-                    <View
-                      style={[
-                        styles.radio,
-                        {
-                          borderColor: groupSelected
-                            ? colors.accent
-                            : colors.textSecondary,
-                          backgroundColor: groupSelected
-                            ? colors.accent
-                            : "transparent",
-                        },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.areaLabel,
-                        { color: colors.text, fontFamily: Fonts.medium },
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {group.label}
-                    </Text>
-                    <Text
-                      style={[styles.chevron, { color: colors.textSecondary }]}
-                    >
-                      {isExpanded ? "\u25B4" : "\u25BE"}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => handleRenameGroup(group)}
-                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                      style={styles.editButton}
-                    >
-                      <Feather
-                        name="edit-3"
-                        size={14}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-                    <View
-                      style={[
-                        styles.countPill,
-                        { borderColor: colors.border, borderWidth: 1 },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.countPillText, { color: colors.text }]}
-                      >
-                        {group.totalCount}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-
-                  {isExpanded &&
-                    group.subAreas.map((sub, sIdx) => {
-                      const subSelected = labelsMatch(
-                        selectedLabels,
-                        sub.labels,
-                      );
-                      const subIsLast =
-                        sIdx === group.subAreas.length - 1 && isLast;
-                      const isSubDragSource =
-                        dragSource !== null &&
-                        dragSource.groupIdx === gIdx &&
-                        labelsMatch(dragSource.labels, sub.labels);
-
-                      return (
-                        <TouchableOpacity
-                          key={sIdx}
-                          style={[
-                            styles.areaRow,
-                            styles.subAreaRow,
-                            !subIsLast && {
-                              borderBottomWidth: StyleSheet.hairlineWidth,
-                              borderBottomColor: colors.borderLight,
-                            },
-                            isSubDragSource && { opacity: 0.4 },
-                          ]}
-                          onPress={() => selectArea(sub.labels, sub.fullLabel)}
-                          onLongPress={() =>
-                            handleStartDrag(gIdx, sub.labels, sub.fullLabel)
-                          }
-                        >
-                          <View
-                            style={[
-                              styles.radioSmall,
-                              {
-                                borderColor: subSelected
-                                  ? colors.accent
-                                  : colors.textSecondary,
-                                backgroundColor: subSelected
-                                  ? colors.accent
-                                  : "transparent",
-                              },
-                            ]}
-                          />
-                          <Text
-                            style={[styles.areaLabel, { color: colors.text }]}
-                            numberOfLines={1}
-                          >
-                            {sub.label}
-                          </Text>
-                          <TouchableOpacity
-                            onPress={() =>
-                              handleRenameLabel(sub.labels, sub.fullLabel)
-                            }
-                            hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                            style={styles.editButton}
-                          >
-                            <Feather
-                              name="edit-3"
-                              size={14}
-                              color={colors.textSecondary}
-                            />
-                          </TouchableOpacity>
-                          <View
-                            style={[
-                              styles.countPill,
-                              {
-                                borderColor: colors.border,
-                                borderWidth: 1,
-                              },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.countPillText,
-                                { color: colors.text },
-                              ]}
-                            >
-                              {sub.count}
-                            </Text>
-                          </View>
-                        </TouchableOpacity>
-                      );
-                    })}
-                </View>
-              );
-            })}
+            {countryGroups.map((group, cIdx) =>
+              renderCountryGroup(group, cIdx),
+            )}
           </View>
         )}
       </ScrollView>
@@ -905,11 +727,11 @@ export default function FilterModal() {
             {
               backgroundColor: colors.accent,
               borderColor: colors.activeSelectionBorder,
-              opacity: selectedLabels.length === 0 ? 0.4 : 1,
+              opacity: selectedCountry === null ? 0.4 : 1,
             },
           ]}
           onPress={handleApply}
-          disabled={selectedLabels.length === 0}
+          disabled={selectedCountry === null}
         >
           <Text style={[styles.applyButtonText, { color: colors.text }]}>
             {t("filter.apply")}
@@ -1016,6 +838,9 @@ const styles = StyleSheet.create({
   subAreaRow: {
     paddingLeft: 40,
   },
+  subSubAreaRow: {
+    paddingLeft: 64,
+  },
   radio: {
     width: 20,
     height: 20,
@@ -1041,41 +866,6 @@ const styles = StyleSheet.create({
   countPillText: {
     fontFamily: Fonts.medium,
     fontSize: 12,
-  },
-  editButton: {
-    padding: 4,
-  },
-  dragBannerWrap: {
-    gap: 8,
-    marginBottom: 12,
-  },
-  dragBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 999,
-    borderWidth: 2,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
-  },
-  dragBannerText: {
-    flex: 1,
-    fontFamily: Fonts.medium,
-    fontSize: 13,
-  },
-  dropRootZone: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    borderRadius: 999,
-    borderWidth: 2,
-    borderStyle: "dashed",
-    paddingVertical: 10,
-  },
-  dropRootText: {
-    fontFamily: Fonts.medium,
-    fontSize: 13,
   },
   chevron: {
     fontSize: 14,

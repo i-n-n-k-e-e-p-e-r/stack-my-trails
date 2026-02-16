@@ -5,7 +5,7 @@ Last updated: February 15, 2026
 
 ## Overview
 
-Stack My Trails is a personal fitness visualization app that reads your workout routes from Apple Health and displays them on a map. Your data stays on your device. We do not collect, transmit, or store any user data on external servers.
+Stack My Trails is a personal fitness visualization app that reads your workout routes from Apple Health and displays them on a map. Your data stays on your device. We do not collect or store any user data on external servers. The only network requests the app makes are to Apple's geocoding service to convert workout coordinates into place names (see Location section below).
 
 ## Data We Access
 
@@ -24,7 +24,7 @@ Workout data is imported explicitly by you and stored locally in an on-device da
 
 We use your device's location services for two purposes:
 
-1. **Reverse geocoding** — converting GPS coordinates of your workout routes into human-readable place names (e.g., city and neighborhood). This is done via the operating system's built-in geocoding service. Location labels are cached locally on your device to minimize geocoding requests.
+1. **Reverse geocoding** — converting GPS coordinates of your workout routes into human-readable place names (e.g., city and region). This is done via Apple's built-in geocoding service, which means the coordinates of your workout route centers are sent to Apple's servers for lookup. We cache the resulting location names locally on your device to minimize these requests. No other data is transmitted. Apple's handling of this data is governed by [Apple's Privacy Policy](https://www.apple.com/legal/privacy/).
 
 2. **Show My Location on the map** — when you manually enable this option in the Settings tab, your current position is displayed on the stacked trails map. This helps you discover new or unvisited routes in your area. This feature is off by default and can be toggled on or off at any time. Your live location is used only for on-screen display and is never stored or transmitted.
 
@@ -50,7 +50,7 @@ You can export your trail data to a local file for backup purposes. This file is
 - No analytics or usage tracking
 - No advertising data
 - No crash reporting to third parties
-- No data transmitted to external servers
+- No data transmitted to external servers (except coordinates sent to Apple for reverse geocoding as described above)
 - No cookies or web tracking
 
 ## Third-Party Services

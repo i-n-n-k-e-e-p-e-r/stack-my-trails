@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Trail, TrailSummary, Coordinate, BoundingBox } from './geo';
+import type { Trail, TrailSummary, Coordinate } from './geo';
 
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 export async function initDatabase(db: SQLiteDatabase) {
   await db.execAsync(`
@@ -79,6 +79,16 @@ export async function initDatabase(db: SQLiteDatabase) {
       .catch(() => {});
   }
 
+  if (currentVersion < 8) {
+    await db
+      .execAsync(`
+      ALTER TABLE trails ADD COLUMN location_country TEXT;
+      ALTER TABLE trails ADD COLUMN location_region TEXT;
+      ALTER TABLE trails ADD COLUMN location_city TEXT;
+    `)
+      .catch(() => {});
+  }
+
   if (currentVersion === 0) {
     await db.runAsync(
       'INSERT INTO schema_version (version) VALUES (?)',
@@ -91,14 +101,20 @@ export async function initDatabase(db: SQLiteDatabase) {
 
 export async function upsertTrail(
   db: SQLiteDatabase,
-  trail: Trail & { locationLabel?: string | null },
+  trail: Trail & {
+    locationLabel?: string | null;
+    locationCountry?: string | null;
+    locationRegion?: string | null;
+    locationCity?: string | null;
+  },
 ) {
   await db.runAsync(
     `INSERT OR REPLACE INTO trails
       (workout_id, activity_type, start_date, end_date, duration, coordinates,
        bbox_min_lat, bbox_max_lat, bbox_min_lng, bbox_max_lng,
-       temperature, weather_condition, location_label, imported_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       temperature, weather_condition, location_label,
+       location_country, location_region, location_city, imported_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     trail.workoutId,
     trail.activityType,
     trail.startDate,
@@ -112,6 +128,9 @@ export async function upsertTrail(
     trail.temperature ?? null,
     trail.weatherCondition ?? null,
     trail.locationLabel ?? null,
+    trail.locationCountry ?? null,
+    trail.locationRegion ?? null,
+    trail.locationCity ?? null,
     new Date().toISOString(),
   );
 }
@@ -131,11 +150,15 @@ interface SummaryRow {
   temperature: number | null;
   weather_condition: number | null;
   location_label: string | null;
+  location_country: string | null;
+  location_region: string | null;
+  location_city: string | null;
 }
 
 const SUMMARY_COLS = `workout_id, activity_type, start_date, end_date, duration,
   bbox_min_lat, bbox_max_lat, bbox_min_lng, bbox_max_lng,
-  temperature, weather_condition, location_label`;
+  temperature, weather_condition, location_label,
+  location_country, location_region, location_city`;
 
 function rowToSummary(row: SummaryRow): TrailSummary {
   return {
@@ -153,6 +176,9 @@ function rowToSummary(row: SummaryRow): TrailSummary {
     temperature: row.temperature,
     weatherCondition: row.weather_condition,
     locationLabel: row.location_label,
+    locationCountry: row.location_country,
+    locationRegion: row.location_region,
+    locationCity: row.location_city,
   };
 }
 
@@ -185,38 +211,27 @@ export async function getTrailSummaries(
   return rows.map(rowToSummary);
 }
 
-/** Load trail summaries by label within a date range. */
-export async function getTrailSummariesByLabel(
+/** Load trail summaries by structured location within a date range. */
+export async function getTrailSummariesByLocation(
   db: SQLiteDatabase,
   startDate: Date,
   endDate: Date,
-  label: string,
-): Promise<TrailSummary[]> {
-  const rows = await db.getAllAsync<SummaryRow>(
-    `SELECT ${SUMMARY_COLS} FROM trails
-     WHERE start_date >= ? AND start_date <= ?
-       AND location_label = ?
-     ORDER BY start_date DESC`,
-    startDate.toISOString(),
-    endDate.toISOString(),
-    label,
-  );
-  return rows.map(rowToSummary);
-}
-
-/** Load trail summaries by multiple labels within a date range. */
-export async function getTrailSummariesByLabels(
-  db: SQLiteDatabase,
-  startDate: Date,
-  endDate: Date,
-  labels: string[],
+  country: string,
+  region?: string | null,
+  city?: string | null,
   activityTypes?: number[] | null,
 ): Promise<TrailSummary[]> {
-  if (labels.length === 0) return [];
-  const params: (string | number)[] = [startDate.toISOString(), endDate.toISOString(), ...labels];
+  const params: (string | number)[] = [startDate.toISOString(), endDate.toISOString(), country];
   let query = `SELECT ${SUMMARY_COLS} FROM trails
-     WHERE start_date >= ? AND start_date <= ?
-       AND location_label IN (${labels.map(() => '?').join(',')})`;
+     WHERE start_date >= ? AND start_date <= ? AND location_country = ?`;
+  if (region) {
+    query += ` AND location_region = ?`;
+    params.push(region);
+  }
+  if (city) {
+    query += ` AND location_city = ?`;
+    params.push(city);
+  }
   if (activityTypes && activityTypes.length > 0) {
     query += ` AND activity_type IN (${activityTypes.map(() => '?').join(',')})`;
     params.push(...activityTypes);
@@ -226,27 +241,48 @@ export async function getTrailSummariesByLabels(
   return rows.map(rowToSummary);
 }
 
-/** Load trail summaries within a date range and bounding box. */
-export async function getTrailSummariesInArea(
+/** Get distinct area combinations with trail counts, optionally filtered by date range and activity types. */
+export async function getDistinctAreas(
   db: SQLiteDatabase,
-  startDate: Date,
-  endDate: Date,
-  bbox: BoundingBox,
-): Promise<TrailSummary[]> {
-  const rows = await db.getAllAsync<SummaryRow>(
-    `SELECT ${SUMMARY_COLS} FROM trails
-     WHERE start_date >= ? AND start_date <= ?
-       AND bbox_max_lat >= ? AND bbox_min_lat <= ?
-       AND bbox_max_lng >= ? AND bbox_min_lng <= ?
-     ORDER BY start_date DESC`,
-    startDate.toISOString(),
-    endDate.toISOString(),
-    bbox.minLat,
-    bbox.maxLat,
-    bbox.minLng,
-    bbox.maxLng,
+  startDate?: Date,
+  endDate?: Date,
+  activityTypes?: number[] | null,
+): Promise<{ country: string; region: string; city: string; count: number }[]> {
+  const conditions = ['location_country IS NOT NULL'];
+  const params: (string | number)[] = [];
+  if (startDate && endDate) {
+    conditions.push('start_date >= ? AND start_date <= ?');
+    params.push(startDate.toISOString(), endDate.toISOString());
+  }
+  if (activityTypes && activityTypes.length > 0) {
+    conditions.push(`activity_type IN (${activityTypes.map(() => '?').join(',')})`);
+    params.push(...activityTypes);
+  }
+  return db.getAllAsync<{ country: string; region: string; city: string; count: number }>(
+    `SELECT location_country as country, location_region as region, location_city as city, COUNT(*) as count
+     FROM trails
+     WHERE ${conditions.join(' AND ')}
+     GROUP BY location_country, location_region, location_city
+     ORDER BY count DESC`,
+    ...params,
   );
-  return rows.map(rowToSummary);
+}
+
+/** Get the location of the most recent trail. */
+export async function getLastTrailLocation(
+  db: SQLiteDatabase,
+): Promise<{ country: string; region: string; city: string } | null> {
+  const row = await db.getFirstAsync<{
+    location_country: string;
+    location_region: string;
+    location_city: string;
+  }>(
+    `SELECT location_country, location_region, location_city FROM trails
+     WHERE location_country IS NOT NULL
+     ORDER BY start_date DESC LIMIT 1`,
+  );
+  if (!row) return null;
+  return { country: row.location_country, region: row.location_region, city: row.location_city };
 }
 
 // ---------- Coordinate queries (on demand) ----------
@@ -295,20 +331,6 @@ export async function getTrailsByIds(
 export async function deleteAllTrails(db: SQLiteDatabase) {
   await db.execAsync('DELETE FROM trails');
   await db.execAsync('DELETE FROM cluster_labels');
-}
-
-/** Rename a location label across all trails that have it. */
-export async function renameTrailLabel(
-  db: SQLiteDatabase,
-  oldLabel: string,
-  newLabel: string,
-): Promise<number> {
-  const result = await db.runAsync(
-    'UPDATE trails SET location_label = ? WHERE location_label = ?',
-    newLabel,
-    oldLabel,
-  );
-  return result.changes;
 }
 
 // ---------- Stats ----------

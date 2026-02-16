@@ -3,8 +3,9 @@ type Listener = () => void;
 export interface FilterState {
   startDate: Date;
   endDate: Date;
-  areaLabels: string[] | null;
-  areaLabel: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
   activityTypes: number[] | null;
 }
 
@@ -13,7 +14,7 @@ function defaultState(): FilterState {
   const end = new Date();
   const start = new Date();
   start.setFullYear(start.getFullYear() - 1);
-  return { startDate: start, endDate: end, areaLabels: null, areaLabel: null, activityTypes: null };
+  return { startDate: start, endDate: end, country: null, region: null, city: null, activityTypes: null };
 }
 
 let _state: FilterState = defaultState();
@@ -26,7 +27,7 @@ export function getFilters(): FilterState {
 
 /** True when an area has been selected (trails will be shown). */
 export function hasActiveFilters(): boolean {
-  return _state.areaLabels !== null && _state.areaLabels.length > 0;
+  return _state.country !== null;
 }
 
 export function setFilters(update: Partial<FilterState>) {

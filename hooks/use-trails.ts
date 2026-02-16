@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSQLiteContext } from "expo-sqlite";
 import {
   getTrailSummaries,
-  getTrailSummariesByLabels,
+  getTrailSummariesByLocation,
   getTrailsByIds,
 } from "@/lib/db";
 import {
@@ -21,7 +21,9 @@ const COARSE_TOLERANCE = 0.0002;
 interface UseTrailsOptions {
   startDate: Date;
   endDate: Date;
-  labels?: string[] | null;
+  country?: string | null;
+  region?: string | null;
+  city?: string | null;
   activityTypes?: number[] | null;
 }
 
@@ -37,7 +39,9 @@ interface UseTrailsResult {
 export function useTrails({
   startDate,
   endDate,
-  labels,
+  country,
+  region,
+  city,
   activityTypes,
 }: UseTrailsOptions): UseTrailsResult {
   const db = useSQLiteContext();
@@ -48,7 +52,7 @@ export function useTrails({
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  const labelsKey = labels ? labels.join("\0") : "";
+  const locationKey = `${country ?? ''}\0${region ?? ''}\0${city ?? ''}`;
   const activityKey = activityTypes ? activityTypes.join(",") : "";
 
   useEffect(() => {
@@ -59,15 +63,13 @@ export function useTrails({
       setError(null);
 
       try {
-        const summaries = labels
-          ? labels.length > 0
-            ? await getTrailSummariesByLabels(db, startDate, endDate, labels, activityTypes)
-            : [] // Empty labels array = no trails (no area selected)
+        const summaries = country
+          ? await getTrailSummariesByLocation(db, startDate, endDate, country, region, city, activityTypes)
           : await getTrailSummaries(db, startDate, endDate, activityTypes);
         if (cancelled) return;
 
-        if (labels && labels.length > 0) {
-          // When labels are provided, put all matching trails in one cluster
+        if (country) {
+          // When location filter is active, put all matching trails in one cluster
           const bboxCoords = summaries.flatMap((s) => [
             { latitude: s.boundingBox.minLat, longitude: s.boundingBox.minLng },
             { latitude: s.boundingBox.maxLat, longitude: s.boundingBox.maxLng },
@@ -100,7 +102,7 @@ export function useTrails({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, startDate.getTime(), endDate.getTime(), labelsKey, activityKey, refreshKey]);
+  }, [db, startDate.getTime(), endDate.getTime(), locationKey, activityKey, refreshKey]);
 
   const loadClusterTrails = useCallback(
     async (cluster: TrailCluster): Promise<Trail[]> => {

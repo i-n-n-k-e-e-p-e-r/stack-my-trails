@@ -22,7 +22,7 @@ import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import * as Location from "expo-location";
-import { getTrailCount, getSetting } from "@/lib/db";
+import { getTrailCount, getSetting, getLastTrailLocation } from "@/lib/db";
 import { useTrails } from "@/hooks/use-trails";
 import { smoothCoordinates, type Trail } from "@/lib/geo";
 import { setExportData } from "@/lib/export-store";
@@ -30,6 +30,7 @@ import {
   getFilters,
   subscribeFilters,
   hasActiveFilters,
+  setFilters,
 } from "@/lib/filter-store";
 import { useTranslation } from "@/contexts/language";
 
@@ -49,7 +50,21 @@ export default function StackScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getTrailCount(db).then((count) => setHasTrails(count > 0));
+      getTrailCount(db).then((count) => {
+        setHasTrails(count > 0);
+        // Auto-apply default filter (last workout's city) on first load
+        if (count > 0 && !hasActiveFilters()) {
+          getLastTrailLocation(db).then((loc) => {
+            if (loc) {
+              setFilters({
+                country: loc.country,
+                region: loc.region,
+                city: loc.city,
+              });
+            }
+          });
+        }
+      });
       getSetting(db, "showLocation")
         .then(async (v) => {
           if (v === "true") {
@@ -64,8 +79,11 @@ export default function StackScreen() {
   );
 
   const filters = useSyncExternalStore(subscribeFilters, getFilters);
-  const { startDate, endDate, areaLabels: filterLabels, areaLabel, activityTypes } = filters;
+  const { startDate, endDate, country, region, city, activityTypes } = filters;
   const filtersActive = hasActiveFilters();
+  const displayLabel = country
+    ? [city, region, country].filter(Boolean).join(', ')
+    : '';
 
   // "Ring the bell" nudge animation for filter button when no area selected
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -103,7 +121,7 @@ export default function StackScreen() {
       loop.start();
       return () => {
         loop.stop();
-        shakeAnim.setValue(0);
+        shakeAnim.stopAnimation();
       };
     } else {
       shakeAnim.setValue(0);
@@ -113,7 +131,9 @@ export default function StackScreen() {
   const { clusters, loading, loadClusterTrails } = useTrails({
     startDate,
     endDate,
-    labels: filterLabels ?? [],
+    country,
+    region,
+    city,
     activityTypes,
   });
 
@@ -171,9 +191,9 @@ export default function StackScreen() {
         heading = camera.heading || 0;
       } catch {}
     }
-    setExportData(renderedTrails, areaLabel ?? "", mapRegion, heading);
+    setExportData(renderedTrails, displayLabel, mapRegion, heading);
     router.push("/export-modal");
-  }, [router, renderedTrails, areaLabel, mapRegion]);
+  }, [router, renderedTrails, displayLabel, mapRegion]);
 
   const totalInCluster = selectedCluster?.summaries.length ?? 0;
 
@@ -294,7 +314,7 @@ export default function StackScreen() {
               style={[styles.clusterLabel, { color: colors.text }]}
               numberOfLines={1}
             >
-              {areaLabel ?? t("stack.selectArea")}
+              {displayLabel || t("stack.selectArea")}
             </Text>
             <Text style={[styles.trailCount, { color: colors.textSecondary }]}>
               {!filtersActive
