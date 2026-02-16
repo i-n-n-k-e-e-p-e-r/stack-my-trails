@@ -131,5 +131,11 @@
   "dataIo.noTrailData": "Nieprawidłowy plik — brak danych tras",
   "dataIo.signatureFailed": "Weryfikacja podpisu nie powiodła się — plik może być uszkodzony lub zmodyfikowany",
   "dataIo.missingFields": "Nieprawidłowy rekord trasy — brak wymaganych pól",
-  "dataIo.missingCoordinates": "Nieprawidłowa trasa {{id}} — brak współrzędnych"
+  "dataIo.missingCoordinates": "Nieprawidłowa trasa {{id}} — brak współrzędnych",
+
+  "settings.updateLabels": "Zaktualizuj nazwy",
+  "settings.updatingLabels": "Aktualizacja nazw...",
+  "settings.labelProgress": "{{progress}} / {{total}} nazw",
+  "settings.labelsFailed": "Nie udało się załadować {{count}} nazw lokalizacji. Naciśnij «Zaktualizuj nazwy», aby ponowić.",
+  "settings.labelsFixed": "Zaktualizowano {{count}} nazw"
 }

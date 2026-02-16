@@ -131,5 +131,11 @@
   "dataIo.noTrailData": "Fichier invalide — aucune donnée de parcours trouvée",
   "dataIo.signatureFailed": "Vérification de signature échouée — le fichier peut être corrompu ou altéré",
   "dataIo.missingFields": "Enregistrement invalide — champs obligatoires manquants",
-  "dataIo.missingCoordinates": "Parcours invalide {{id}} — coordonnées manquantes"
+  "dataIo.missingCoordinates": "Parcours invalide {{id}} — coordonnées manquantes",
+
+  "settings.updateLabels": "Mettre à jour les noms",
+  "settings.updatingLabels": "Mise à jour des noms...",
+  "settings.labelProgress": "{{progress}} / {{total}} noms",
+  "settings.labelsFailed": "{{count}} noms de lieux n'ont pas pu être chargés. Appuyez sur « Mettre à jour les noms » pour réessayer.",
+  "settings.labelsFixed": "{{count}} noms mis à jour"
 }

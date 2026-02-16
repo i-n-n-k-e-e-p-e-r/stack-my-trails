@@ -131,5 +131,11 @@
   "dataIo.noTrailData": "Ungültige Datei — keine Streckendaten gefunden",
   "dataIo.signatureFailed": "Signaturprüfung fehlgeschlagen — Datei ist möglicherweise beschädigt oder manipuliert",
   "dataIo.missingFields": "Ungültiger Streckeneintrag — fehlende Pflichtfelder",
-  "dataIo.missingCoordinates": "Ungültige Strecke {{id}} — fehlende Koordinaten"
+  "dataIo.missingCoordinates": "Ungültige Strecke {{id}} — fehlende Koordinaten",
+
+  "settings.updateLabels": "Bezeichnungen aktualisieren",
+  "settings.updatingLabels": "Bezeichnungen aktualisieren...",
+  "settings.labelProgress": "{{progress}} / {{total}} Bezeichnungen",
+  "settings.labelsFailed": "{{count}} Ortsbezeichnungen konnten nicht geladen werden. Tippe auf «Bezeichnungen aktualisieren» zum Wiederholen.",
+  "settings.labelsFixed": "{{count}} Bezeichnungen aktualisiert"
 }

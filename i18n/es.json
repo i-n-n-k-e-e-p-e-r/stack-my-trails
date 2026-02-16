@@ -131,5 +131,11 @@
   "dataIo.noTrailData": "Archivo inválido — no se encontraron datos de rutas",
   "dataIo.signatureFailed": "Verificación de firma fallida — el archivo puede estar corrupto o manipulado",
   "dataIo.missingFields": "Registro de ruta inválido — faltan campos obligatorios",
-  "dataIo.missingCoordinates": "Ruta inválida {{id}} — faltan coordenadas"
+  "dataIo.missingCoordinates": "Ruta inválida {{id}} — faltan coordenadas",
+
+  "settings.updateLabels": "Actualizar nombres",
+  "settings.updatingLabels": "Actualizando nombres...",
+  "settings.labelProgress": "{{progress}} / {{total}} nombres",
+  "settings.labelsFailed": "No se pudieron cargar {{count}} nombres de ubicación. Toca «Actualizar nombres» para reintentar.",
+  "settings.labelsFixed": "{{count}} nombres actualizados"
 }

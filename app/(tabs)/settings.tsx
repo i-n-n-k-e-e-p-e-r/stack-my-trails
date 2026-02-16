@@ -17,6 +17,7 @@ import * as Location from "expo-location";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { useImportTrails } from "@/hooks/use-import-trails";
+import { useUpdateLabels } from "@/hooks/use-update-labels";
 import {
   getTrailCount,
   getLastImportDate,
@@ -67,7 +68,16 @@ export default function SettingsScreen() {
   const { preference, setPreference } = useThemePreference();
   const { t, language, setLanguage } = useTranslation();
 
-  const { importing, progress, total, error, startImport } = useImportTrails();
+  const { importing, progress, total, error, failedLabels, startImport } =
+    useImportTrails();
+  const {
+    updating: updatingLabels,
+    progress: labelProgress,
+    total: labelTotal,
+    failedCount: labelFailedCount,
+    fixedCount: labelFixedCount,
+    startUpdate: startUpdateLabels,
+  } = useUpdateLabels();
   const [trailCount, setTrailCount] = useState(0);
   const [lastImport, setLastImport] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -152,7 +162,8 @@ export default function SettingsScreen() {
     );
   }, [db, t]);
 
-  const busy = importing || deleting || dataExporting || dataImporting;
+  const busy =
+    importing || deleting || dataExporting || dataImporting || updatingLabels;
 
   const handleExportData = useCallback(async () => {
     setDataExporting(true);
@@ -396,6 +407,65 @@ export default function SettingsScreen() {
           </Text>
         )}
 
+        {/* Update labels progress */}
+        {updatingLabels && (
+          <View
+            style={[
+              styles.progressSection,
+              { borderColor: colors.border },
+            ]}
+          >
+            <View
+              style={[
+                styles.progressBarBg,
+                {
+                  backgroundColor: colors.borderLight,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    backgroundColor: colors.accent,
+                    width:
+                      labelTotal > 0
+                        ? `${(labelProgress / labelTotal) * 100}%`
+                        : "0%",
+                  },
+                ]}
+              />
+            </View>
+            <Text style={[styles.progressText, { color: colors.text }]}>
+              {t("settings.labelProgress", {
+                progress: labelProgress,
+                total: labelTotal,
+              })}
+            </Text>
+          </View>
+        )}
+
+        {/* Failed labels warning */}
+        {!importing &&
+          !updatingLabels &&
+          (failedLabels > 0 ||
+            (!updatingLabels && labelFixedCount > 0)) && (
+            <Text
+              style={[
+                styles.hint,
+                { color: colors.textSecondary, marginBottom: 8 },
+              ]}
+            >
+              {labelFixedCount > 0
+                ? t("settings.labelsFixed", { count: labelFixedCount }) +
+                  (labelFailedCount > 0
+                    ? ` · ${t("settings.labelsFailed", { count: labelFailedCount })}`
+                    : "")
+                : t("settings.labelsFailed", { count: failedLabels })}
+            </Text>
+          )}
+
         {/* Import buttons */}
         <View style={styles.buttonGroup}>
           <TouchableOpacity
@@ -434,6 +504,26 @@ export default function SettingsScreen() {
             >
               <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
                 {t("settings.fetchNew")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {trailCount > 0 && (failedLabels > 0 || labelFailedCount > 0) && (
+            <TouchableOpacity
+              style={[
+                styles.outlinedButton,
+                {
+                  borderColor: colors.border,
+                  opacity: busy ? 0.6 : 1,
+                },
+              ]}
+              onPress={startUpdateLabels}
+              disabled={busy}
+            >
+              <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
+                {updatingLabels
+                  ? t("settings.updatingLabels")
+                  : t("settings.updateLabels")}
               </Text>
             </TouchableOpacity>
           )}

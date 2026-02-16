@@ -131,5 +131,11 @@
   "dataIo.noTrailData": "Invalid file — no trail data found",
   "dataIo.signatureFailed": "Signature verification failed — file may be corrupted or tampered with",
   "dataIo.missingFields": "Invalid trail record — missing required fields",
-  "dataIo.missingCoordinates": "Invalid trail {{id}} — missing coordinates"
+  "dataIo.missingCoordinates": "Invalid trail {{id}} — missing coordinates",
+
+  "settings.updateLabels": "Update Labels",
+  "settings.updatingLabels": "Updating labels...",
+  "settings.labelProgress": "{{progress}} / {{total}} labels",
+  "settings.labelsFailed": "{{count}} location labels could not be loaded. Tap Update Labels to retry.",
+  "settings.labelsFixed": "{{count}} labels updated"
 }

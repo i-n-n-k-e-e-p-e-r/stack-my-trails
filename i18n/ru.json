@@ -131,5 +131,11 @@
   "dataIo.noTrailData": "Неверный файл — данные маршрутов не найдены",
   "dataIo.signatureFailed": "Проверка подписи не пройдена — файл повреждён или изменён",
   "dataIo.missingFields": "Неверная запись маршрута — отсутствуют обязательные поля",
-  "dataIo.missingCoordinates": "Неверный маршрут {{id}} — отсутствуют координаты"
+  "dataIo.missingCoordinates": "Неверный маршрут {{id}} — отсутствуют координаты",
+
+  "settings.updateLabels": "Обновить названия",
+  "settings.updatingLabels": "Обновление названий...",
+  "settings.labelProgress": "{{progress}} / {{total}} названий",
+  "settings.labelsFailed": "Не удалось загрузить {{count}} названий. Нажмите «Обновить названия» для повтора.",
+  "settings.labelsFixed": "{{count}} названий обновлено"
 }

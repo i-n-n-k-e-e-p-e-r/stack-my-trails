@@ -326,6 +326,38 @@ export async function getTrailsByIds(
   return results;
 }
 
+// ---------- Missing labels ----------
+
+/** Get trails where geocoding failed (country='Unknown' or city looks like coordinates). */
+export async function getTrailsWithMissingLabels(
+  db: SQLiteDatabase,
+): Promise<TrailSummary[]> {
+  const rows = await db.getAllAsync<SummaryRow>(
+    `SELECT ${SUMMARY_COLS} FROM trails
+     WHERE location_country = 'Unknown'
+        OR location_city GLOB '*[0-9]*.[0-9]*, *[0-9]*.[0-9]*'
+     ORDER BY start_date DESC`,
+  );
+  return rows.map(rowToSummary);
+}
+
+/** Update just the location fields for a trail. */
+export async function updateTrailLocation(
+  db: SQLiteDatabase,
+  workoutId: string,
+  location: { country: string; region: string; city: string; label: string },
+) {
+  await db.runAsync(
+    `UPDATE trails SET location_country = ?, location_region = ?, location_city = ?, location_label = ?
+     WHERE workout_id = ?`,
+    location.country,
+    location.region,
+    location.city,
+    location.label,
+    workoutId,
+  );
+}
+
 // ---------- Delete ----------
 
 export async function deleteAllTrails(db: SQLiteDatabase) {

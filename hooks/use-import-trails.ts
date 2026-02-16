@@ -22,6 +22,7 @@ interface UseImportTrailsResult {
   progress: number;
   total: number;
   error: string | null;
+  failedLabels: number;
   startImport: (since?: Date | null) => void;
 }
 
@@ -31,6 +32,7 @@ export function useImportTrails(): UseImportTrailsResult {
   const [progress, setProgress] = useState(0);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [failedLabels, setFailedLabels] = useState(0);
 
   const startImport = useCallback(async (since?: Date | null) => {
     if (importing) return;
@@ -39,6 +41,8 @@ export function useImportTrails(): UseImportTrailsResult {
     setProgress(0);
     setTotal(0);
     setError(null);
+    setFailedLabels(0);
+    let labelFailCount = 0;
 
     try {
       const gpsFilterSetting = await getSetting(db, "gpsFilter").catch(() => null);
@@ -90,6 +94,7 @@ export function useImportTrails(): UseImportTrailsResult {
               db,
               bboxCenter(boundingBox),
             );
+            if (location.failed) labelFailCount++;
 
             await upsertTrail(db, {
               workoutId: workout.uuid,
@@ -114,9 +119,10 @@ export function useImportTrails(): UseImportTrailsResult {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed');
     } finally {
+      setFailedLabels(labelFailCount);
       setImporting(false);
     }
   }, [db, importing]);
 
-  return { importing, progress, total, error, startImport };
+  return { importing, progress, total, error, failedLabels, startImport };
 }
