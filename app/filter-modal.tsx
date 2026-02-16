@@ -13,9 +13,19 @@ import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
-import { getDistinctAreas, getTrailDateRange, getLastTrailLocation } from "@/lib/db";
+import {
+  getDistinctAreas,
+  getTrailDateRange,
+  getLastTrailLocation,
+} from "@/lib/db";
 import { getFilters, setFilters, hasActiveFilters } from "@/lib/filter-store";
 import { useTranslation } from "@/contexts/language";
+
+import CyclingIcon from "@/assets/images/sports/figure.outdoor.cycle.svg";
+import HikingIcon from "@/assets/images/sports/figure.hiking.svg";
+import RunningIcon from "@/assets/images/sports/figure.run.svg";
+import SwimmingIcon from "@/assets/images/sports/figure.open.water.swim.svg";
+import WalkingIcon from "@/assets/images/sports/figure.walk.svg";
 
 const PRESETS = [
   { labelKey: "filter.preset.1d", days: 1 },
@@ -32,6 +42,14 @@ const ACTIVITIES = [
   { type: 24, labelKey: "activity.hiking" },
   { type: 46, labelKey: "activity.swimming" },
 ] as const;
+
+const ACTIVITY_ICONS: Record<number, React.FC<any>> = {
+  13: CyclingIcon,
+  24: HikingIcon,
+  37: RunningIcon,
+  46: SwimmingIcon,
+  52: WalkingIcon,
+};
 
 interface CityEntry {
   city: string;
@@ -168,7 +186,11 @@ export default function FilterModal() {
       if (countryGroups[cIdx].country === selectedCountry) {
         setExpandedCountries(new Set([cIdx]));
         if (selectedRegion) {
-          for (let rIdx = 0; rIdx < countryGroups[cIdx].regions.length; rIdx++) {
+          for (
+            let rIdx = 0;
+            rIdx < countryGroups[cIdx].regions.length;
+            rIdx++
+          ) {
             if (countryGroups[cIdx].regions[rIdx].region === selectedRegion) {
               setExpandedRegions(new Set([`${cIdx}-${rIdx}`]));
               break;
@@ -298,7 +320,8 @@ export default function FilterModal() {
           ]}
           onPress={() => {
             const isCurrentCountry = selectedCountry === group.country;
-            const hasSubSelection = isCurrentCountry && (selectedRegion || selectedCity);
+            const hasSubSelection =
+              isCurrentCountry && (selectedRegion || selectedCity);
             if (hasSubSelection) {
               // Elevate to country-level selection, keep expanded
               selectCountry(group.country);
@@ -503,11 +526,7 @@ export default function FilterModal() {
                             },
                           ]}
                           onPress={() =>
-                            selectCity(
-                              group.country,
-                              region.region,
-                              city.city,
-                            )
+                            selectCity(group.country, region.region, city.city)
                           }
                         >
                           <View
@@ -667,14 +686,16 @@ export default function FilterModal() {
                     backgroundColor: isActive ? colors.accent : "transparent",
                     borderColor: isActive
                       ? colors.activeSelectionBorder
-                      : colors.border,
+                      : colors.borderLight,
                   },
                 ]}
                 onPress={() => toggleActivity(act.type)}
               >
-                <Text style={[styles.presetText, { color: colors.text }]}>
-                  {t(act.labelKey)}
-                </Text>
+                {React.createElement(ACTIVITY_ICONS[act.type], {
+                  width: 24,
+                  height: 24,
+                  fill: isActive ? colors.text : colors.textSecondary,
+                })}
               </TouchableOpacity>
             );
           })}
@@ -793,10 +814,12 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   presetChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
   },
   presetText: {
     fontFamily: Fonts.semibold,

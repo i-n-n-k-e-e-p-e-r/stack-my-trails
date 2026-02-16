@@ -1,4 +1,10 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
 import {
   StyleSheet,
   View,
@@ -21,6 +27,12 @@ import { smoothCoordinates } from "@/lib/geo";
 import type { TrailSummary, Coordinate } from "@/lib/geo";
 import { useTranslation } from "@/contexts/language";
 
+import CyclingIcon from "@/assets/images/sports/figure.outdoor.cycle.svg";
+import HikingIcon from "@/assets/images/sports/figure.hiking.svg";
+import RunningIcon from "@/assets/images/sports/figure.run.svg";
+import SwimmingIcon from "@/assets/images/sports/figure.open.water.swim.svg";
+import WalkingIcon from "@/assets/images/sports/figure.walk.svg";
+
 const ACTIVITY_LABEL_KEYS: Record<number, string> = {
   13: "activity.cycling",
   24: "activity.hiking",
@@ -29,12 +41,12 @@ const ACTIVITY_LABEL_KEYS: Record<number, string> = {
   52: "activity.walking",
 };
 
-const ACTIVITY_ICONS: Record<number, string> = {
-  13: "\u{1F6B2}",
-  24: "\u{26F0}",
-  37: "\u{1F3C3}",
-  46: "\u{1F3CA}",
-  52: "\u{1F6B6}",
+const ACTIVITY_ICONS: Record<number, React.FC<any>> = {
+  13: CyclingIcon,
+  24: HikingIcon,
+  37: RunningIcon,
+  46: SwimmingIcon,
+  52: WalkingIcon,
 };
 
 const ACTIVITIES = [
@@ -164,7 +176,6 @@ export default function TrailsScreen() {
     return () => clearTimeout(timer);
   }, [selectedCoords, fitMap]);
 
-
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
   }, []);
@@ -192,15 +203,19 @@ export default function TrailsScreen() {
         >
           <View style={styles.cardContent}>
             <View style={styles.cardTopRow}>
-              <Text style={styles.activityIcon}>
-                {ACTIVITY_ICONS[item.activityType] ?? "\u{1F3C3}"}
-              </Text>
+              {React.createElement(
+                ACTIVITY_ICONS[item.activityType] ?? ACTIVITY_ICONS[37],
+                { width: 24, height: 24, fill: colors.text },
+              )}
               <View style={styles.cardTitleBlock}>
                 <Text
                   style={[styles.trailTitle, { color: colors.text }]}
                   numberOfLines={1}
                 >
-                  {t(ACTIVITY_LABEL_KEYS[item.activityType] ?? "trails.workoutFallback")}
+                  {t(
+                    ACTIVITY_LABEL_KEYS[item.activityType] ??
+                      "trails.workoutFallback",
+                  )}
                   {" \u00B7 "}
                   {formatDate(item.startDate)}
                 </Text>
@@ -368,16 +383,16 @@ export default function TrailsScreen() {
                     backgroundColor: isActive ? colors.accent : "transparent",
                     borderColor: isActive
                       ? colors.activeSelectionBorder
-                      : colors.border,
+                      : colors.borderLight,
                   },
                 ]}
                 onPress={() => toggleActivity(act.type)}
               >
-                <Text
-                  style={[styles.activityChipText, { color: colors.text }]}
-                >
-                  {t(act.labelKey)}
-                </Text>
+                {React.createElement(ACTIVITY_ICONS[act.type], {
+                  width: 24,
+                  height: 24,
+                  fill: isActive ? colors.text : colors.textSecondary,
+                })}
               </TouchableOpacity>
             );
           })}
@@ -488,19 +503,19 @@ const styles = StyleSheet.create({
   activityScrollContent: {
     paddingHorizontal: 16,
     gap: 8,
+    flexGrow: 1,
+    justifyContent: "center",
   },
   activityChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 999,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     borderWidth: 2,
-  },
-  activityChipText: {
-    fontFamily: Fonts.semibold,
-    fontSize: 13,
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyFilter: {
-    flex: 1,
+    paddingTop: 40,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 32,
@@ -522,9 +537,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
   },
-  activityIcon: {
-    fontSize: 24,
-  },
+
   cardTitleBlock: {
     flex: 1,
   },
