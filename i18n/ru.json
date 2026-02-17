@@ -60,6 +60,7 @@
   "settings.exportHint": "Экспортируйте маршруты в виде подписанного файла. Импортируйте на другом устройстве или после переустановки.",
   "settings.deleting": "Удаление...",
   "settings.deleteAll": "Удалить все данные",
+  "settings.privacyPolicy": "Политика конфиденциальности",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "ЯЗЫК",
 
@@ -133,6 +134,7 @@
   "dataIo.missingFields": "Неверная запись маршрута — отсутствуют обязательные поля",
   "dataIo.missingCoordinates": "Неверный маршрут {{id}} — отсутствуют координаты",
 
+  "settings.keepAppOpen": "Не закрывайте приложение во время импорта",
   "settings.updateLabels": "Обновить названия",
   "settings.updatingLabels": "Обновление названий...",
   "settings.labelProgress": "{{progress}} / {{total}} названий",

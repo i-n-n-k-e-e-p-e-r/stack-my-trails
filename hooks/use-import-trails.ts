@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
 import {
   requestAuthorization,
@@ -23,7 +23,9 @@ interface UseImportTrailsResult {
   total: number;
   error: string | null;
   failedLabels: number;
+  cancelled: boolean;
   startImport: (since?: Date | null) => void;
+  cancelImport: () => void;
 }
 
 export function useImportTrails(): UseImportTrailsResult {
@@ -33,6 +35,12 @@ export function useImportTrails(): UseImportTrailsResult {
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [failedLabels, setFailedLabels] = useState(0);
+  const [cancelled, setCancelled] = useState(false);
+  const cancelRef = useRef(false);
+
+  const cancelImport = useCallback(() => {
+    cancelRef.current = true;
+  }, []);
 
   const startImport = useCallback(async (since?: Date | null) => {
     if (importing) return;
@@ -42,6 +50,8 @@ export function useImportTrails(): UseImportTrailsResult {
     setTotal(0);
     setError(null);
     setFailedLabels(0);
+    setCancelled(false);
+    cancelRef.current = false;
     let labelFailCount = 0;
 
     try {
@@ -64,6 +74,8 @@ export function useImportTrails(): UseImportTrailsResult {
       setTotal(workouts.length);
 
       for (let i = 0; i < workouts.length; i++) {
+        if (cancelRef.current) break;
+
         const workout = workouts[i];
         setProgress(i + 1);
 
@@ -120,9 +132,10 @@ export function useImportTrails(): UseImportTrailsResult {
       setError(e instanceof Error ? e.message : 'Import failed');
     } finally {
       setFailedLabels(labelFailCount);
+      setCancelled(cancelRef.current);
       setImporting(false);
     }
   }, [db, importing]);
 
-  return { importing, progress, total, error, failedLabels, startImport };
+  return { importing, progress, total, error, failedLabels, cancelled, startImport, cancelImport };
 }

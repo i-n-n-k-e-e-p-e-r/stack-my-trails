@@ -60,6 +60,7 @@
   "settings.exportHint": "Exportez vos parcours dans un fichier de sauvegarde signé. Importez sur un autre appareil ou après réinstallation.",
   "settings.deleting": "Suppression...",
   "settings.deleteAll": "Supprimer toutes les données",
+  "settings.privacyPolicy": "Politique de confidentialite",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "LANGUE",
 
@@ -133,6 +134,7 @@
   "dataIo.missingFields": "Enregistrement invalide — champs obligatoires manquants",
   "dataIo.missingCoordinates": "Parcours invalide {{id}} — coordonnées manquantes",
 
+  "settings.keepAppOpen": "Gardez l'app ouverte pendant l'import",
   "settings.updateLabels": "Mettre à jour les noms",
   "settings.updatingLabels": "Mise à jour des noms...",
   "settings.labelProgress": "{{progress}} / {{total}} noms",

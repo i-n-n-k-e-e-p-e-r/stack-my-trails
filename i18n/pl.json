@@ -60,6 +60,7 @@
   "settings.exportHint": "Eksportuj trasy jako podpisany plik kopii zapasowej. Importuj na innym urządzeniu lub po reinstalacji.",
   "settings.deleting": "Usuwanie...",
   "settings.deleteAll": "Usuń wszystkie dane",
+  "settings.privacyPolicy": "Polityka prywatnosci",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "JĘZYK",
 
@@ -133,6 +134,7 @@
   "dataIo.missingFields": "Nieprawidłowy rekord trasy — brak wymaganych pól",
   "dataIo.missingCoordinates": "Nieprawidłowa trasa {{id}} — brak współrzędnych",
 
+  "settings.keepAppOpen": "Nie zamykaj aplikacji podczas importu",
   "settings.updateLabels": "Zaktualizuj nazwy",
   "settings.updatingLabels": "Aktualizacja nazw...",
   "settings.labelProgress": "{{progress}} / {{total}} nazw",

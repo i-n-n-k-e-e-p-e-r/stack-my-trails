@@ -60,6 +60,7 @@
   "settings.exportHint": "Exporta tus rutas como archivo de respaldo firmado. Importa en otro dispositivo o después de reinstalar.",
   "settings.deleting": "Eliminando...",
   "settings.deleteAll": "Eliminar todos los datos",
+  "settings.privacyPolicy": "Politica de privacidad",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "IDIOMA",
 
@@ -133,6 +134,7 @@
   "dataIo.missingFields": "Registro de ruta inválido — faltan campos obligatorios",
   "dataIo.missingCoordinates": "Ruta inválida {{id}} — faltan coordenadas",
 
+  "settings.keepAppOpen": "Mantener la app abierta durante la importacion",
   "settings.updateLabels": "Actualizar nombres",
   "settings.updatingLabels": "Actualizando nombres...",
   "settings.labelProgress": "{{progress}} / {{total}} nombres",

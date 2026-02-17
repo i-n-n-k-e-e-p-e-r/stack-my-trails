@@ -7,6 +7,7 @@ import {
   ScrollView,
   Alert,
   Switch,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSQLiteContext } from "expo-sqlite";
@@ -68,8 +69,16 @@ export default function SettingsScreen() {
   const { preference, setPreference } = useThemePreference();
   const { t, language, setLanguage } = useTranslation();
 
-  const { importing, progress, total, error, failedLabels, startImport } =
-    useImportTrails();
+  const {
+    importing,
+    progress,
+    total,
+    error,
+    failedLabels,
+    cancelled,
+    startImport,
+    cancelImport,
+  } = useImportTrails();
   const {
     updating: updatingLabels,
     progress: labelProgress,
@@ -398,6 +407,29 @@ export default function SettingsScreen() {
                 ? t("settings.importProgress", { progress, total })
                 : t("settings.fetchingWorkouts")}
             </Text>
+            <Text
+              style={[
+                styles.progressText,
+                { color: colors.textSecondary, marginTop: 2 },
+              ]}
+            >
+              {t("settings.keepAppOpen")}
+            </Text>
+            {total > 0 && (
+              <TouchableOpacity
+                style={[
+                  styles.cancelButton,
+                  { borderColor: colors.borderLight },
+                ]}
+                onPress={cancelImport}
+              >
+                <Text
+                  style={[styles.cancelButtonText, { color: colors.textSecondary }]}
+                >
+                  {t("common.cancel")}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -668,6 +700,17 @@ export default function SettingsScreen() {
             )}
         </View>
 
+        <TouchableOpacity
+          onPress={() =>
+            Linking.openURL("https://stackmytrails.com/privacy-policy")
+          }
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.privacyLink, { color: colors.textSecondary }]}>
+            {t("settings.privacyPolicy")}
+          </Text>
+        </TouchableOpacity>
+
         <Text style={[styles.versionText, { color: colors.textSecondary }]}>
           {t("settings.version", {
             version: Constants.expoConfig?.version ?? "1.0.0",
@@ -840,6 +883,24 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     fontFamily: Fonts.semibold,
     fontSize: 16,
+  },
+  cancelButton: {
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+  cancelButtonText: {
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+  },
+  privacyLink: {
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 24,
+    textDecorationLine: "underline",
   },
   versionText: {
     fontFamily: Fonts.regular,
