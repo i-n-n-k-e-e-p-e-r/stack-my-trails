@@ -12,10 +12,14 @@
       "supportsTablet": false,
       "bundleIdentifier": "dev.tuftbird.stackmytrails",
       "buildNumber": "1",
+      "deploymentTarget": "16.0",
       "icon": {
         "dark": "./assets/images/icons/ios-icon-dark.png",
         "light": "./assets/images/icons/ios-icon-light.png",
         "tinted": "./assets/images/icons/ios-icon-tinted.png"
+      },
+      "infoPlist": {
+        "LSApplicationCategoryType": "public.app-category.healthcare-fitness"
       }
     },
     "android": {
@@ -50,7 +54,6 @@
         "@kingstinct/react-native-healthkit",
         {
           "NSHealthShareUsageDescription": "Stack My Trails reads your workout routes to visualize them on the map",
-          "NSHealthUpdateUsageDescription": false,
           "background": false
         }
       ],
