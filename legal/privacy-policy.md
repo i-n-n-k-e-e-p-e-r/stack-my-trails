@@ -71,5 +71,4 @@ We may update this privacy policy from time to time. Any changes will be reflect
 
 ## Contact
 
-If you have questions about this privacy policy, please open an issue at:
-https://github.com/anthropics/stack-my-trails/issues
+If you have questions about this privacy policy, please open an issue at [support@stackmytrails.com](mailto:support@stackmytrails.com).
