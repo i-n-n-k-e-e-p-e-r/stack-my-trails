@@ -238,7 +238,7 @@ export default function StackScreen() {
               borderColor: colors.activeSelectionBorder,
             },
           ]}
-          onPress={() => router.push("/(tabs)/settings")}
+          onPress={() => router.push({ pathname: "/(tabs)/settings", params: { scrollToImport: "1" } })}
         >
           <Text style={[styles.emptyButtonText, { color: colors.text }]}>
             {t("stack.empty.button")}
