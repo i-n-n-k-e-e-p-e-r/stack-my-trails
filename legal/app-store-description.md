@@ -66,6 +66,10 @@ running,trails,heatmap,workout,routes,poster,map,cycling,hiking,fitness,visualiz
 
 Initial release.
 
+## Marketing text
+
+Your routes are more than data — they're memories, places you love, trips you'll never forget. Stack My Trails turns them into art worth keeping.
+
 ## App Review Notes
 
 This app reads workout route data from Apple Health to visualize GPS routes on a map. Users must explicitly tap "Import" to load their workouts. The app does not write to HealthKit and does not access data in the background. During import, route center coordinates are sent to Apple's geocoding service to resolve place names. No other data is transmitted to external servers. All data is stored locally on the device.

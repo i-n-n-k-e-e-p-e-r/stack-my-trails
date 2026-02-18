@@ -9,8 +9,9 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "dev.tuftbird.stack-my-trails",
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.tuftbird.stackmytrails",
+      "buildNumber": "1",
       "icon": {
         "dark": "./assets/images/icons/ios-icon-dark.png",
         "light": "./assets/images/icons/ios-icon-light.png",
