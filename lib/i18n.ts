@@ -3,11 +3,12 @@ import ru from '@/i18n/ru.json';
 import pl from '@/i18n/pl.json';
 import de from '@/i18n/de.json';
 import es from '@/i18n/es.json';
+import fr from '@/i18n/fr.json';
 import pt from '@/i18n/pt.json';
 
-export type Language = 'en' | 'ru' | 'pl' | 'de' | 'es' | 'pt';
+export type Language = 'en' | 'ru' | 'pl' | 'de' | 'es' | 'fr' | 'pt';
 
-const translations: Record<Language, Record<string, string>> = { en, ru, pl, de, es, pt };
+const translations: Record<Language, Record<string, string>> = { en, ru, pl, de, es, fr, pt };
 
 /** All supported language codes (used for device locale matching). */
 export const SUPPORTED_LANGUAGES = new Set<string>(Object.keys(translations));
@@ -16,6 +17,7 @@ export const LANGUAGES: { value: Language; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'de', label: 'Deutsch' },
   { value: 'es', label: 'Español' },
+  { value: 'fr', label: 'Français' },
   { value: 'pl', label: 'Polski' },
   { value: 'pt', label: 'Português' },
   { value: 'ru', label: 'Русский' },

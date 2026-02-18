@@ -22,6 +22,9 @@ interface TrailRecord {
   temperature?: number | null;
   weatherCondition?: number | null;
   locationLabel?: string | null;
+  locationCountry?: string | null;
+  locationRegion?: string | null;
+  locationCity?: string | null;
 }
 
 interface ExportFile {
@@ -64,6 +67,9 @@ interface FullTrailRow {
   temperature: number | null;
   weather_condition: number | null;
   location_label: string | null;
+  location_country: string | null;
+  location_region: string | null;
+  location_city: string | null;
 }
 
 /**
@@ -91,6 +97,9 @@ export async function exportTrailData(db: SQLiteDatabase): Promise<string> {
     temperature: row.temperature,
     weatherCondition: row.weather_condition,
     locationLabel: row.location_label,
+    locationCountry: row.location_country,
+    locationRegion: row.location_region,
+    locationCity: row.location_city,
   }));
 
   const trailsJson = JSON.stringify(trails);
@@ -180,8 +189,9 @@ export async function importTrailData(
       `INSERT OR IGNORE INTO trails
         (workout_id, activity_type, start_date, end_date, duration, coordinates,
          bbox_min_lat, bbox_max_lat, bbox_min_lng, bbox_max_lng,
-         temperature, weather_condition, location_label, imported_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         temperature, weather_condition, location_label,
+         location_country, location_region, location_city, imported_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       trail.workoutId,
       trail.activityType,
       trail.startDate,
@@ -195,6 +205,9 @@ export async function importTrailData(
       trail.temperature ?? null,
       trail.weatherCondition ?? null,
       trail.locationLabel ?? null,
+      trail.locationCountry ?? null,
+      trail.locationRegion ?? null,
+      trail.locationCity ?? null,
       new Date().toISOString(),
     );
 

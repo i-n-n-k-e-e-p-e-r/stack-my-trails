@@ -522,7 +522,9 @@ export default function ExportModal() {
           { paddingTop: insets.top, borderBottomColor: colors.borderLight },
         ]}
       >
-        <Text style={[styles.headerTitle, { color: colors.text }]}>{t("export.title")}</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          {t("export.title")}
+        </Text>
         <TouchableOpacity
           style={[styles.closeButton, { borderColor: colors.border }]}
           onPress={() => router.back()}
@@ -793,7 +795,9 @@ export default function ExportModal() {
           />
         </View>
         <View style={[styles.sliderRow, !tintEnabled && { opacity: 0.3 }]}>
-          <Text style={[styles.sliderLabel, { color: colors.text }]}>{t("export.tint")}</Text>
+          <Text style={[styles.sliderLabel, { color: colors.text }]}>
+            {t("export.tint")}
+          </Text>
           <Slider
             style={styles.slider}
             minimumValue={0}
@@ -947,9 +951,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   optionCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
   },

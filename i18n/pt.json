@@ -60,6 +60,7 @@
   "settings.exportHint": "Exporte suas trilhas como arquivo de backup assinado. Importe em outro dispositivo ou após reinstalar.",
   "settings.deleting": "Excluindo...",
   "settings.deleteAll": "Excluir todos os dados",
+  "settings.privacyPolicy": "Política de privacidade",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "IDIOMA",
 
@@ -131,5 +132,12 @@
   "dataIo.noTrailData": "Arquivo inválido — dados de trilhas não encontrados",
   "dataIo.signatureFailed": "Verificação de assinatura falhou — arquivo pode estar corrompido ou adulterado",
   "dataIo.missingFields": "Registro de trilha inválido — campos obrigatórios ausentes",
-  "dataIo.missingCoordinates": "Trilha inválida {{id}} — coordenadas ausentes"
+  "dataIo.missingCoordinates": "Trilha inválida {{id}} — coordenadas ausentes",
+
+  "settings.keepAppOpen": "Mantenha o app aberto durante a importacao",
+  "settings.updateLabels": "Atualizar nomes",
+  "settings.updatingLabels": "Atualizando nomes...",
+  "settings.labelProgress": "{{progress}} / {{total}} nomes",
+  "settings.labelsFailed": "{{count}} nomes de localização não puderam ser carregados. Toque em «Atualizar nomes» para tentar novamente.",
+  "settings.labelsFixed": "{{count}} nomes atualizados"
 }

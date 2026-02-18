@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -7,16 +7,19 @@ import {
   ScrollView,
   Alert,
   Switch,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSQLiteContext } from "expo-sqlite";
 import { Feather } from "@expo/vector-icons";
+import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import * as Location from "expo-location";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { useImportTrails } from "@/hooks/use-import-trails";
+import { useUpdateLabels } from "@/hooks/use-update-labels";
 import {
   getTrailCount,
   getLastImportDate,
@@ -67,7 +70,23 @@ export default function SettingsScreen() {
   const { preference, setPreference } = useThemePreference();
   const { t, language, setLanguage } = useTranslation();
 
-  const { importing, progress, total, error, startImport } = useImportTrails();
+  const {
+    importing,
+    progress,
+    total,
+    error,
+    failedLabels,
+    startImport,
+    cancelImport,
+  } = useImportTrails();
+  const {
+    updating: updatingLabels,
+    progress: labelProgress,
+    total: labelTotal,
+    failedCount: labelFailedCount,
+    fixedCount: labelFixedCount,
+    startUpdate: startUpdateLabels,
+  } = useUpdateLabels();
   const [trailCount, setTrailCount] = useState(0);
   const [lastImport, setLastImport] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -76,6 +95,20 @@ export default function SettingsScreen() {
   const [showLocation, setShowLocation] = useState(false);
   const [gpsFilter, setGpsFilter] = useState(true);
   const [langOpen, setLangOpen] = useState(false);
+
+  const scrollViewRef = useRef<ScrollView>(null);
+  const importButtonY = useRef(0);
+  const { scrollToImport } = useLocalSearchParams<{ scrollToImport?: string }>();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (scrollToImport === "1") {
+        setTimeout(() => {
+          scrollViewRef.current?.scrollTo({ y: importButtonY.current - 16, animated: true });
+        }, 350);
+      }
+    }, [scrollToImport]),
+  );
 
   const refreshStats = useCallback(() => {
     getTrailCount(db).then(setTrailCount);
@@ -152,7 +185,8 @@ export default function SettingsScreen() {
     );
   }, [db, t]);
 
-  const busy = importing || deleting || dataExporting || dataImporting;
+  const busy =
+    importing || deleting || dataExporting || dataImporting || updatingLabels;
 
   const handleExportData = useCallback(async () => {
     setDataExporting(true);
@@ -226,6 +260,7 @@ export default function SettingsScreen() {
 
       {/* Scrollable content */}
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={{
           paddingBottom: 140,
@@ -387,6 +422,32 @@ export default function SettingsScreen() {
                 ? t("settings.importProgress", { progress, total })
                 : t("settings.fetchingWorkouts")}
             </Text>
+            <Text
+              style={[
+                styles.progressText,
+                { color: colors.textSecondary, marginTop: 2 },
+              ]}
+            >
+              {t("settings.keepAppOpen")}
+            </Text>
+            {total > 0 && (
+              <TouchableOpacity
+                style={[
+                  styles.cancelButton,
+                  { borderColor: colors.borderLight },
+                ]}
+                onPress={cancelImport}
+              >
+                <Text
+                  style={[
+                    styles.cancelButtonText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {t("common.cancel")}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -396,8 +457,63 @@ export default function SettingsScreen() {
           </Text>
         )}
 
+        {/* Update labels progress */}
+        {updatingLabels && (
+          <View
+            style={[styles.progressSection, { borderColor: colors.border }]}
+          >
+            <View
+              style={[
+                styles.progressBarBg,
+                {
+                  backgroundColor: colors.borderLight,
+                  borderColor: colors.border,
+                },
+              ]}
+            >
+              <View
+                style={[
+                  styles.progressBarFill,
+                  {
+                    backgroundColor: colors.accent,
+                    width:
+                      labelTotal > 0
+                        ? `${(labelProgress / labelTotal) * 100}%`
+                        : "0%",
+                  },
+                ]}
+              />
+            </View>
+            <Text style={[styles.progressText, { color: colors.text }]}>
+              {t("settings.labelProgress", {
+                progress: labelProgress,
+                total: labelTotal,
+              })}
+            </Text>
+          </View>
+        )}
+
+        {/* Failed labels warning */}
+        {!importing &&
+          !updatingLabels &&
+          (failedLabels > 0 || (!updatingLabels && labelFixedCount > 0)) && (
+            <Text
+              style={[
+                styles.hint,
+                { color: colors.textSecondary, marginBottom: 8 },
+              ]}
+            >
+              {labelFixedCount > 0
+                ? t("settings.labelsFixed", { count: labelFixedCount }) +
+                  (labelFailedCount > 0
+                    ? ` · ${t("settings.labelsFailed", { count: labelFailedCount })}`
+                    : "")
+                : t("settings.labelsFailed", { count: failedLabels })}
+            </Text>
+          )}
+
         {/* Import buttons */}
-        <View style={styles.buttonGroup}>
+        <View style={styles.buttonGroup} onLayout={(e) => { importButtonY.current = e.nativeEvent.layout.y; }}>
           <TouchableOpacity
             style={[
               styles.primaryButton,
@@ -434,6 +550,26 @@ export default function SettingsScreen() {
             >
               <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
                 {t("settings.fetchNew")}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {trailCount > 0 && (failedLabels > 0 || labelFailedCount > 0) && (
+            <TouchableOpacity
+              style={[
+                styles.outlinedButton,
+                {
+                  borderColor: colors.border,
+                  opacity: busy ? 0.6 : 1,
+                },
+              ]}
+              onPress={startUpdateLabels}
+              disabled={busy}
+            >
+              <Text style={[styles.outlinedButtonText, { color: colors.text }]}>
+                {updatingLabels
+                  ? t("settings.updatingLabels")
+                  : t("settings.updateLabels")}
               </Text>
             </TouchableOpacity>
           )}
@@ -578,10 +714,20 @@ export default function SettingsScreen() {
             )}
         </View>
 
+        <TouchableOpacity
+          onPress={() => Linking.openURL("https://stackmytrails.com/privacy")}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.privacyLink, { color: colors.textSecondary }]}>
+            {t("settings.privacyPolicy")}
+          </Text>
+        </TouchableOpacity>
+
         <Text style={[styles.versionText, { color: colors.textSecondary }]}>
-          {t("settings.version", {
-            version: Constants.expoConfig?.version ?? "1.0.0",
-          })}
+          {"© " +
+            t("settings.version", {
+              version: Constants.expoConfig?.version ?? "1.0.0",
+            })}
         </Text>
       </ScrollView>
     </View>
@@ -751,9 +897,27 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.semibold,
     fontSize: 16,
   },
+  cancelButton: {
+    marginTop: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+  cancelButtonText: {
+    fontFamily: Fonts.medium,
+    fontSize: 13,
+  },
+  privacyLink: {
+    fontFamily: Fonts.regular,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 24,
+    textDecorationLine: "underline",
+  },
   versionText: {
     fontFamily: Fonts.regular,
-    fontSize: 12,
+    fontSize: 13,
     textAlign: "center",
     marginTop: 24,
     marginBottom: 8,

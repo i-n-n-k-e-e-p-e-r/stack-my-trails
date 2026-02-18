@@ -60,6 +60,7 @@
   "settings.exportHint": "Exportiere deine Strecken als signierte Sicherungsdatei. Importiere auf einem anderen Gerät oder nach Neuinstallation.",
   "settings.deleting": "Löschen...",
   "settings.deleteAll": "Alle Daten löschen",
+  "settings.privacyPolicy": "Datenschutzrichtlinie",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "SPRACHE",
 
@@ -131,5 +132,12 @@
   "dataIo.noTrailData": "Ungültige Datei — keine Streckendaten gefunden",
   "dataIo.signatureFailed": "Signaturprüfung fehlgeschlagen — Datei ist möglicherweise beschädigt oder manipuliert",
   "dataIo.missingFields": "Ungültiger Streckeneintrag — fehlende Pflichtfelder",
-  "dataIo.missingCoordinates": "Ungültige Strecke {{id}} — fehlende Koordinaten"
+  "dataIo.missingCoordinates": "Ungültige Strecke {{id}} — fehlende Koordinaten",
+
+  "settings.keepAppOpen": "App während des Imports geöffnet lassen",
+  "settings.updateLabels": "Bezeichnungen aktualisieren",
+  "settings.updatingLabels": "Bezeichnungen aktualisieren...",
+  "settings.labelProgress": "{{progress}} / {{total}} Bezeichnungen",
+  "settings.labelsFailed": "{{count}} Ortsbezeichnungen konnten nicht geladen werden. Tippe auf «Bezeichnungen aktualisieren» zum Wiederholen.",
+  "settings.labelsFixed": "{{count}} Bezeichnungen aktualisiert"
 }

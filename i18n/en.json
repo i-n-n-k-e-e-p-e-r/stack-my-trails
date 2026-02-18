@@ -60,6 +60,7 @@
   "settings.exportHint": "Export your trails as a signed backup file. Import on another device or after reinstalling.",
   "settings.deleting": "Deleting...",
   "settings.deleteAll": "Delete All Data",
+  "settings.privacyPolicy": "Privacy Policy",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "LANGUAGE",
 
@@ -131,5 +132,12 @@
   "dataIo.noTrailData": "Invalid file — no trail data found",
   "dataIo.signatureFailed": "Signature verification failed — file may be corrupted or tampered with",
   "dataIo.missingFields": "Invalid trail record — missing required fields",
-  "dataIo.missingCoordinates": "Invalid trail {{id}} — missing coordinates"
+  "dataIo.missingCoordinates": "Invalid trail {{id}} — missing coordinates",
+
+  "settings.keepAppOpen": "Keep the app open during import",
+  "settings.updateLabels": "Update Labels",
+  "settings.updatingLabels": "Updating labels...",
+  "settings.labelProgress": "{{progress}} / {{total}} labels",
+  "settings.labelsFailed": "{{count}} location labels could not be loaded. Tap Update Labels to retry.",
+  "settings.labelsFixed": "{{count}} labels updated"
 }

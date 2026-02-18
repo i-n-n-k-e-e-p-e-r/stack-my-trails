@@ -10,7 +10,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 
 const TAB_ICONS: Record<string, React.ComponentProps<typeof Feather>["name"]> =
   {
-    index: "map-pin",
+    trails: "map-pin",
     stack: "layers",
     settings: "settings",
   };
@@ -32,8 +32,8 @@ function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
           },
         ]}
       >
-        {state.routes.map((route, index) => {
-          const focused = state.index === index;
+        {state.routes.filter((route) => TAB_ICONS[route.name]).map((route, index) => {
+          const focused = state.index === state.routes.indexOf(route);
           const iconName = TAB_ICONS[route.name] ?? "circle";
 
           const onPress = () => {
@@ -81,8 +81,9 @@ export default function TabLayout() {
       screenOptions={{ headerShown: false }}
       initialRouteName="stack"
     >
+      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="trails" options={{ title: "Trails" }} />
       <Tabs.Screen name="stack" options={{ title: "Stack" }} />
-      <Tabs.Screen name="index" options={{ title: "Trails" }} />
       <Tabs.Screen name="settings" options={{ title: "Settings" }} />
     </Tabs>
   );

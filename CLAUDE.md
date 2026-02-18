@@ -117,19 +117,20 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 ### SQLite Storage
 - Database: `trails.db`, initialized via `SQLiteProvider` in root layout
 - `expo-sqlite` modern API (not `/legacy`), async methods
-- Schema v7: trails table + weather columns + `location_label` column + settings table + label cache cleanup migrations
-- `location_label` stored per trail at import time via `resolveLabel()` — ensures stable labels across re-imports
+- Schema v8: trails table + weather columns + structured location columns (`location_country`, `location_region`, `location_city`) + legacy `location_label` + settings table + label cache
+- Structured location stored per trail at import time via `resolveLocation()` — deterministic from geocoder
 - Coordinates stored as simplified JSON strings
-- Label cache: rounded lat/lng (1 decimal, ~11km resolution) as composite PK
+- Label cache: rounded lat/lng (1 decimal, ~11km resolution) as composite PK, stores `country|region|city|label` pipe-delimited format
 - Settings table: key-value store for theme preference etc. (getSetting/setSetting with .catch() for safety)
-- Label-based queries: `getTrailSummariesByLabels()` for exact area filtering (replaces bbox overlap)
+- Location-based queries: `getTrailSummariesByLocation()` filters by country + optional region + optional city
+- `getDistinctAreas()` returns all unique country/region/city combinations with counts
 
 ### Reverse Geocoding (`lib/geocode.ts`)
-- Shared `resolveLabel(db, center)` — checks SQLite cache first, falls back to `expo-location`
-- Uses `addr.district`, `addr.city`, `addr.region` with deduplication
-- Dedup removes exact matches AND prefix matches (e.g., "Minsk Region" dropped when "Minsk" exists)
-- Called during import to store `location_label` per trail — labels are stable across re-imports
-- Also used by trails tab for display labels
+- `resolveLocation(db, center)` — returns `{ country, region, city, label }` from `addr.country`, `addr.region`, `addr.city`
+- `resolveLabel(db, center)` — convenience wrapper, returns display label string
+- Checks SQLite cache first, falls back to `expo-location`
+- Display label uses `addr.district`, `addr.city`, `addr.region` with dedup (prefix matching)
+- Called during import to store structured location per trail
 
 ### Coordinate Simplification
 - **Problem:** Raw GPS routes have thousands of points per trail
@@ -144,11 +145,12 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - City-level: Centroid-seeded grouping in `groupClustersByProximity()` (20km, no chaining)
   - Largest cluster seeds each group, others join if within 20km of seed center
   - Prevents chaining distant areas (e.g., Haifa + Yodfat)
-- **Filter modal groups by stored `location_label`** — no clustering/geocoding at filter time
-  - Groups labels by city suffix (after last comma), sub-areas by locality prefix
-  - Sub-areas with same locality name are merged (counts combined)
-  - Passes `areaLabels` (JSON array of label strings) to stack screen, NOT bbox
-- `useTrails` hook accepts `labels?: string[]` — uses `getTrailSummariesByLabels()` for exact matching
+- **Filter modal uses structured location columns** — 3-level accordion: Country → Region → City
+  - `getDistinctAreas()` returns all unique combinations with counts
+  - Smart flattening: single-entry levels are collapsed into flat rows
+  - No rename, no drag-and-drop, no merge — deterministic from geocoder
+- Filter store passes `country`/`region`/`city` strings (all nullable)
+- `useTrails` hook accepts `country`/`region`/`city` — uses `getTrailSummariesByLocation()` for filtering
 
 ### Font Loading
 - Geist font loaded via `useFonts()` from `expo-font` in `app/_layout.tsx`
@@ -183,11 +185,12 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - Stack tab checks trail count on focus (shows empty state vs map)
 
 ### Filter Modal
-- Loads all trail summaries from DB, groups by stored `location_label`
-- Date range fixed on top, area list scrolls **inside** the bordered card (card is outer container, ScrollView inside)
-- Presets: 1D, 1W, 1M, 6M, 1Y, All
-- Passes `areaLabels` (JSON array) + `areaLabel` (display string) back to stack screen via router params
-- Uses index-based keys and expand tracking (not labels, which can collide)
+- 3-level accordion: Country → Region → City, built from `getDistinctAreas()` query
+- Smart flattening: single-region+single-city countries show as flat row; single-region countries skip region level
+- Date range presets (1D, 1W, 1M, 1Y, All) + date pickers + activity type filter
+- Selection: tap country = all trails in country, tap region = all in region, tap city = just that city
+- Passes `country`/`region`/`city` to filter store (not router params)
+- No rename, no drag-and-drop, no merge functionality
 
 ## Known Issues & Lessons
 
@@ -198,20 +201,18 @@ HealthKit → [GPS filter + simplify] → SQLite → [Fast read] → Clustering 
 - **HealthKit import is sequential** — ~1-2s per workout, must be explicit with progress UI
 - **Reverse geocoding must be cached** — `expo-location` reverseGeocodeAsync is async/slow
 - **Schema migrations** — use version table, ALTER TABLE with .catch() for idempotency
-- **Filter modal uses URL params** — pass `areaLabels` (JSON array) + `areaLabel` (display string) via router params
-- **Label-based filtering > bbox filtering** — bbox overlap causes inconsistent trail counts; label-based is exact
-- **Per-trail labels > cluster-center geocoding** — cluster centroids shift between imports causing label instability; storing labels per trail at import time is stable
+- **Structured location columns** — `location_country`/`location_region`/`location_city` from geocoder, deterministic and stable across re-imports
 - **Geocoder dedup needed** — expo-location often returns same value for city/region (e.g., "Minsk, Minsk"); use prefix-based dedup
 - **GPS spoofing in Israel** — government GPS jamming during war creates points in Amman/Beirut; speed-based filter with timestamps is most effective approach
 - **ThemeProvider must handle missing settings table** — wrap getSetting/setSetting in .catch() since it may run before migration
-- **Duplicate React keys** — area groups can have same label; use array index, not label, for keys and expand tracking
+- **Duplicate React keys** — area groups can have same label; use array index for keys and expand tracking
 - **Map overlay approaches that DON'T work on Maps:**
   - `Polygon` inside MapView (world-spanning coordinates don't render)
   - `LocalTile` with semi-transparent PNG (alpha not preserved during tile scaling, covers entire map opaque)
   - `View` overlay with `pointerEvents="none"` (dims both map AND polylines equally — polylines are native MapView children)
 - **React Navigation tab bar layout issues** — `tabBarStyle` positioning (left/right/width) and `tabBarItemStyle` centering are unreliable for custom shapes; use custom `tabBar` component instead
 - **Geist font loading** — must gate app render with `useFonts()` + `SplashScreen.preventAutoHideAsync()` to prevent FOUT
-- **Filter modal scroll containment** — ScrollView must be INSIDE the bordered card View (not wrapping it) so content clips to rounded corners
+- **Filter modal scroll containment** — ScrollView wraps all filter sections; area card clips to rounded corners
 - **expo-file-system modern API** — Expo 54 uses `File`, `Directory`, `Paths` classes (NOT legacy `cacheDirectory`/`writeAsStringAsync`). Write base64: `new File(Paths.cache, 'name.png').write(base64, { encoding: 'base64' })`
 - **Skia offscreen surface for high-res export** — `Skia.Surface.Make(w, h)` creates CPU-backed surface at any resolution. Draw on `surface.getCanvas()`, then `surface.makeImageSnapshot().encodeToBase64(ImageFormat.PNG)`. Much better than ViewShot which is capped at screen resolution.
 - **Skia Paragraph API for text** — `Skia.ParagraphBuilder.Make(style, provider)` with `Skia.TypefaceFontProvider.Make()` + `registerFont()`. Does NOT support emoji (no system font fallback). Use RN `<Text>` for preview (emoji), Skia Paragraph for high-res export (sharp text).

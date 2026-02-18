@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useSQLiteContext } from 'expo-sqlite';
 import {
   requestAuthorization,
@@ -7,7 +7,7 @@ import {
 import { WorkoutActivityType } from '@kingstinct/react-native-healthkit/types';
 import { computeBoundingBox, filterGpsOutliers, simplifyCoordinates, bboxCenter, type TimedCoordinate } from '@/lib/geo';
 import { upsertTrail, getSetting } from '@/lib/db';
-import { resolveLabel } from '@/lib/geocode';
+import { resolveLocation } from '@/lib/geocode';
 
 const ACTIVITY_TYPES = [
   WorkoutActivityType.running,
@@ -22,7 +22,10 @@ interface UseImportTrailsResult {
   progress: number;
   total: number;
   error: string | null;
+  failedLabels: number;
+  cancelled: boolean;
   startImport: (since?: Date | null) => void;
+  cancelImport: () => void;
 }
 
 export function useImportTrails(): UseImportTrailsResult {
@@ -31,6 +34,13 @@ export function useImportTrails(): UseImportTrailsResult {
   const [progress, setProgress] = useState(0);
   const [total, setTotal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [failedLabels, setFailedLabels] = useState(0);
+  const [cancelled, setCancelled] = useState(false);
+  const cancelRef = useRef(false);
+
+  const cancelImport = useCallback(() => {
+    cancelRef.current = true;
+  }, []);
 
   const startImport = useCallback(async (since?: Date | null) => {
     if (importing) return;
@@ -39,6 +49,10 @@ export function useImportTrails(): UseImportTrailsResult {
     setProgress(0);
     setTotal(0);
     setError(null);
+    setFailedLabels(0);
+    setCancelled(false);
+    cancelRef.current = false;
+    let labelFailCount = 0;
 
     try {
       const gpsFilterSetting = await getSetting(db, "gpsFilter").catch(() => null);
@@ -60,6 +74,8 @@ export function useImportTrails(): UseImportTrailsResult {
       setTotal(workouts.length);
 
       for (let i = 0; i < workouts.length; i++) {
+        if (cancelRef.current) break;
+
         const workout = workouts[i];
         setProgress(i + 1);
 
@@ -86,10 +102,11 @@ export function useImportTrails(): UseImportTrailsResult {
               workout.metadataWeatherCondition ?? null;
 
             const boundingBox = computeBoundingBox(coordinates);
-            const locationLabel = await resolveLabel(
+            const location = await resolveLocation(
               db,
               bboxCenter(boundingBox),
             );
+            if (location.failed) labelFailCount++;
 
             await upsertTrail(db, {
               workoutId: workout.uuid,
@@ -101,7 +118,10 @@ export function useImportTrails(): UseImportTrailsResult {
               boundingBox,
               temperature,
               weatherCondition,
-              locationLabel,
+              locationLabel: location.label,
+              locationCountry: location.country,
+              locationRegion: location.region,
+              locationCity: location.city,
             });
           }
         } catch {
@@ -111,9 +131,11 @@ export function useImportTrails(): UseImportTrailsResult {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import failed');
     } finally {
+      setFailedLabels(labelFailCount);
+      setCancelled(cancelRef.current);
       setImporting(false);
     }
   }, [db, importing]);
 
-  return { importing, progress, total, error, startImport };
+  return { importing, progress, total, error, failedLabels, cancelled, startImport, cancelImport };
 }

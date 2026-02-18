@@ -231,6 +231,9 @@ export interface TrailSummary {
   temperature?: number | null;
   weatherCondition?: number | null;
   locationLabel?: string | null;
+  locationCountry?: string | null;
+  locationRegion?: string | null;
+  locationCity?: string | null;
 }
 
 /** Full trail with coordinates — only load when needed for map display. */
