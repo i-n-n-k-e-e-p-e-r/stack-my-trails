@@ -60,7 +60,7 @@
   "settings.exportHint": "Exportez vos parcours dans un fichier de sauvegarde signé. Importez sur un autre appareil ou après réinstallation.",
   "settings.deleting": "Suppression...",
   "settings.deleteAll": "Supprimer toutes les données",
-  "settings.privacyPolicy": "Politique de confidentialite",
+  "settings.privacyPolicy": "Politique de confidentialité",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "LANGUE",
 

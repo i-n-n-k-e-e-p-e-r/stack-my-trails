@@ -60,7 +60,7 @@
   "settings.exportHint": "Exporta tus rutas como archivo de respaldo firmado. Importa en otro dispositivo o después de reinstalar.",
   "settings.deleting": "Eliminando...",
   "settings.deleteAll": "Eliminar todos los datos",
-  "settings.privacyPolicy": "Politica de privacidad",
+  "settings.privacyPolicy": "Política de privacidad",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "IDIOMA",
 

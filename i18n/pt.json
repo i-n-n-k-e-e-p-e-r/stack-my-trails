@@ -60,7 +60,7 @@
   "settings.exportHint": "Exporte suas trilhas como arquivo de backup assinado. Importe em outro dispositivo ou após reinstalar.",
   "settings.deleting": "Excluindo...",
   "settings.deleteAll": "Excluir todos os dados",
-  "settings.privacyPolicy": "Politica de privacidade",
+  "settings.privacyPolicy": "Política de privacidade",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "IDIOMA",
 

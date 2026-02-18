@@ -21,7 +21,7 @@ export async function resolveLocation(
     }
   }
 
-  for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+  for (let attempt = 0; attempt < RETRY_DELAYS.length; attempt++) {
     try {
       const results = await Location.reverseGeocodeAsync({
         latitude: center.latitude,
@@ -49,7 +49,7 @@ export async function resolveLocation(
       // Empty results — don't retry, geocoder has no data for this location
       break;
     } catch {
-      if (attempt < RETRY_DELAYS.length) {
+      if (attempt < RETRY_DELAYS.length - 1) {
         await delay(RETRY_DELAYS[attempt]);
       }
     }

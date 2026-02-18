@@ -60,7 +60,7 @@
   "settings.exportHint": "Eksportuj trasy jako podpisany plik kopii zapasowej. Importuj na innym urządzeniu lub po reinstalacji.",
   "settings.deleting": "Usuwanie...",
   "settings.deleteAll": "Usuń wszystkie dane",
-  "settings.privacyPolicy": "Polityka prywatnosci",
+  "settings.privacyPolicy": "Polityka prywatności",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "JĘZYK",
 

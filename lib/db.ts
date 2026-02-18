@@ -335,7 +335,7 @@ export async function getTrailsWithMissingLabels(
   const rows = await db.getAllAsync<SummaryRow>(
     `SELECT ${SUMMARY_COLS} FROM trails
      WHERE location_country = 'Unknown'
-        OR location_city GLOB '*[0-9]*.[0-9]*, *[0-9]*.[0-9]*'
+        OR location_city GLOB '*[0-9].[0-9]*, *[0-9].[0-9]*'
      ORDER BY start_date DESC`,
   );
   return rows.map(rowToSummary);
