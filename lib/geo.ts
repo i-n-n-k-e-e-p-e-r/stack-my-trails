@@ -165,11 +165,7 @@ export function simplifyCoordinates(
 ): Coordinate[] {
   if (coords.length <= 2) return coords;
 
-  function perpDist(
-    pt: Coordinate,
-    a: Coordinate,
-    b: Coordinate,
-  ): number {
+  function perpDist(pt: Coordinate, a: Coordinate, b: Coordinate): number {
     const dx = b.longitude - a.longitude;
     const dy = b.latitude - a.latitude;
     const lenSq = dx * dx + dy * dy;
@@ -359,7 +355,7 @@ export function clusterTrails(
   }
 
   const clusters: TrailCluster[] = [];
-  for (const [_, groupTrails] of groups) {
+  for (const [, groupTrails] of groups) {
     const unionBbox: BoundingBox = {
       minLat: Math.min(...groupTrails.map((t) => t.boundingBox.minLat)),
       maxLat: Math.max(...groupTrails.map((t) => t.boundingBox.maxLat)),

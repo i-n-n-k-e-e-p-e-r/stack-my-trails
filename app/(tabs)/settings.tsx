@@ -98,13 +98,18 @@ export default function SettingsScreen() {
 
   const scrollViewRef = useRef<ScrollView>(null);
   const importButtonY = useRef(0);
-  const { scrollToImport } = useLocalSearchParams<{ scrollToImport?: string }>();
+  const { scrollToImport } = useLocalSearchParams<{
+    scrollToImport?: string;
+  }>();
 
   useFocusEffect(
     useCallback(() => {
       if (scrollToImport === "1") {
         setTimeout(() => {
-          scrollViewRef.current?.scrollTo({ y: importButtonY.current - 16, animated: true });
+          scrollViewRef.current?.scrollTo({
+            y: importButtonY.current - 16,
+            animated: true,
+          });
         }, 350);
       }
     }, [scrollToImport]),
@@ -321,9 +326,14 @@ export default function SettingsScreen() {
             },
           ]}
         >
-          <Text style={[styles.switchLabel, { color: colors.text }]}>
-            {t("settings.showLocation")}
-          </Text>
+          <View style={styles.switchLabelBlock}>
+            <Text style={[styles.switchLabel, { color: colors.text }]}>
+              {t("settings.showLocation")}
+            </Text>
+            <Text style={[styles.switchHint, { color: colors.textSecondary }]}>
+              {t("settings.showLocationHint")}
+            </Text>
+          </View>
           <Switch
             value={showLocation}
             onValueChange={handleToggleLocation}
@@ -332,9 +342,38 @@ export default function SettingsScreen() {
         </View>
 
         {/* Health Data section */}
-        <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-          {t("settings.healthData")}
-        </Text>
+        <View style={styles.sectionLabelRow}>
+          <Text
+            style={[
+              styles.sectionLabel,
+              {
+                paddingHorizontal: 0,
+                marginBottom: 0,
+                marginTop: 0,
+                color: colors.textSecondary,
+              },
+            ]}
+          >
+            {t("settings.healthData")}
+          </Text>
+          <TouchableOpacity
+            style={[styles.healthBadge, { borderColor: colors.borderLight }]}
+            onPress={() =>
+              Alert.alert(
+                t("settings.healthDialog.title"),
+                t("settings.healthDialog.message"),
+              )
+            }
+            activeOpacity={0.7}
+          >
+            <Feather name="heart" size={11} color="#EF4444" />
+            <Text
+              style={[styles.healthBadgeText, { color: colors.textSecondary }]}
+            >
+              Apple Health
+            </Text>
+          </TouchableOpacity>
+        </View>
         <View
           style={[
             styles.card,
@@ -513,7 +552,12 @@ export default function SettingsScreen() {
           )}
 
         {/* Import buttons */}
-        <View style={styles.buttonGroup} onLayout={(e) => { importButtonY.current = e.nativeEvent.layout.y; }}>
+        <View
+          style={styles.buttonGroup}
+          onLayout={(e) => {
+            importButtonY.current = e.nativeEvent.layout.y;
+          }}
+        >
           <TouchableOpacity
             style={[
               styles.primaryButton,
@@ -749,6 +793,14 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  sectionLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    marginBottom: 8,
+    marginTop: 8,
+  },
   sectionLabel: {
     fontFamily: Fonts.medium,
     fontSize: 11,
@@ -756,6 +808,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 8,
     marginTop: 8,
+  },
+  healthBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  healthBadgeText: {
+    fontFamily: Fonts.medium,
+    fontSize: 11,
   },
   card: {
     marginHorizontal: 16,
@@ -797,9 +862,19 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.regular,
     fontSize: 15,
   },
+  switchLabelBlock: {
+    flex: 1,
+    marginRight: 12,
+  },
   switchLabel: {
     fontFamily: Fonts.medium,
     fontSize: 15,
+  },
+  switchHint: {
+    fontFamily: Fonts.regular,
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
   },
   statRow: {
     flexDirection: "row",

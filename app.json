@@ -19,7 +19,10 @@
         "tinted": "./assets/images/icons/ios-icon-tinted.png"
       },
       "infoPlist": {
-        "LSApplicationCategoryType": "public.app-category.healthcare-fitness"
+        "LSApplicationCategoryType": "public.app-category.healthcare-fitness",
+        "NSLocationWhenInUseUsageDescription": "Stack My Trails shows your current position on the trail map so you can see where you are relative to your past routes and explore new directions nearby.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Stack My Trails shows your current position on the trail map so you can see where you are relative to your past routes and explore new directions nearby.",
+        "NSLocationAlwaysUsageDescription": "Stack My Trails shows your current position on the trail map so you can see where you are relative to your past routes and explore new directions nearby."
       }
     },
     "android": {
@@ -54,7 +57,7 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "Stack My Trails reads your workout routes to visualize them on the map",
+          "NSHealthShareUsageDescription": "Stack My Trails reads your workout routes from Apple Health to display them on a map and create stacked visualizations of all your training routes.",
           "NSHealthUpdateUsageDescription": "Stack My Trails does not modify your health data",
           "background": false
         }
@@ -64,8 +67,8 @@
       [
         "expo-media-library",
         {
-          "photosPermission": "Allow Stack My Trails to save poster images to your photo library",
-          "savePhotosPermission": "Allow Stack My Trails to save poster images to your photo library"
+          "photosPermission": "Stack My Trails saves your exported trail poster images to your photo library so you can share or print them.",
+          "savePhotosPermission": "Stack My Trails saves your exported trail poster images to your photo library so you can share or print them."
         }
       ]
     ],

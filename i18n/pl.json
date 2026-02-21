@@ -2,12 +2,11 @@
   "trails.title": "TWOJE TRASY",
   "trails.loading": "Ładowanie tras...",
   "trails.empty.title": "Brak tras",
-  "trails.empty.subtitle": "Zaimportuj treningi, aby je tutaj zobaczyć.",
+  "trails.empty.subtitle": "Połącz Apple Health i zaimportuj treningi, aby je tutaj zobaczyć.",
   "trails.empty.button": "Importuj treningi",
   "trails.emptyFilter": "Brak tras dla wybranych aktywności",
   "trails.labelLoading": "Ładowanie...",
   "trails.workoutFallback": "Trening",
-
   "activity.running": "Bieganie",
   "activity.walking": "Spacer",
   "activity.cycling": "Rower",
@@ -18,12 +17,10 @@
   "activity.cycle": "Rower",
   "activity.hike": "Wędrówka",
   "activity.swim": "Pływanie",
-
   "duration.hoursMinutes": "{{h}}g {{m}}m",
   "duration.minutes": "{{m}}m",
-
   "stack.empty.title": "Brak tras",
-  "stack.empty.subtitle": "Najpierw zaimportuj treningi, aby nałożyć je na mapę.",
+  "stack.empty.subtitle": "Połącz Apple Health i zaimportuj treningi, aby wyświetlić je na mapie.",
   "stack.empty.button": "Importuj treningi",
   "stack.selectArea": "Wybierz obszar",
   "stack.tapFilter": "Użyj filtra",
@@ -32,7 +29,6 @@
   "stack.trailCountPartial": "{{rendered}} z {{total}} tras",
   "stack.selectAreaOverlay": "Wybierz obszar, aby zobaczyć trasy",
   "stack.loadingTrails": "Ładowanie tras...",
-
   "settings.title": "Ustawienia",
   "settings.appearance": "WYGLĄD",
   "settings.theme.auto": "Auto",
@@ -40,6 +36,7 @@
   "settings.theme.dark": "Ciemny",
   "settings.map": "MAPA",
   "settings.showLocation": "Pokaż moją lokalizację",
+  "settings.showLocationHint": "Wymaga dostępu do lokalizacji, aby wyświetlić Twoją pozycję na mapie w zakładce Stack.",
   "settings.healthData": "DANE ZDROWOTNE",
   "settings.totalTrails": "Łącznie tras",
   "settings.lastImport": "Ostatni import",
@@ -51,7 +48,9 @@
   "settings.reimportAll": "Importuj wszystko ponownie",
   "settings.importWorkouts": "Importuj treningi",
   "settings.fetchNew": "Pobierz nowe",
-  "settings.importHint": "Importuje bieganie, spacery, rower, wędrówki i pływanie na otwartej wodzie z trasami GPS z urządzenia.",
+  "settings.importHint": "Importuje treningi biegowe, piesze, rowerowe, górskie i pływackie z trasami GPS. Wymaga dostępu tylko do odczytu z Apple Health — Twoje dane nigdy nie są przesyłane ani udostępniane.",
+  "settings.healthDialog.title": "Dostęp do Apple Health",
+  "settings.healthDialog.message": "Stack My Trails odczytuje Twoje trasy treningowe z Apple Health, aby wyświetlić je na mapie.\n\nImportuje treningi biegowe, piesze, rowerowe, górskie i pływackie z danymi GPS nagranymi przez Apple Watch lub dowolną aplikację z GPS.\n\nPrzy pierwszym naciśnięciu Importuj zostanie poproszony o dostęp tylko do odczytu. Twoje dane zdrowotne nigdy nie są przesyłane, udostępniane ani przechowywane poza urządzeniem.",
   "settings.backupRestore": "KOPIA ZAPASOWA",
   "settings.exporting": "Eksportowanie...",
   "settings.exportData": "Eksport danych",
@@ -63,7 +62,6 @@
   "settings.privacyPolicy": "Polityka prywatności",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "JĘZYK",
-
   "settings.alert.locationTitle": "Dostęp do lokalizacji",
   "settings.alert.locationMessage": "Włącz dostęp do lokalizacji w Ustawieniach, aby pokazać swoją pozycję na mapie.",
   "settings.alert.deleteTitle": "Usuń wszystkie dane",
@@ -73,16 +71,13 @@
   "settings.alert.importCompleteMessage": "Zaimportowano: {{imported}}{{skippedText}} ({{total}} łącznie w pliku)",
   "settings.alert.importCompleteSkipped": ", pominięto: {{skipped}}",
   "settings.alert.importFailedTitle": "Błąd importu",
-
   "common.cancel": "Anuluj",
   "common.delete": "Usuń",
   "common.unknownError": "Nieznany błąd",
-
   "relativeDate.justNow": "Właśnie teraz",
   "relativeDate.minutesAgo": "{{count}} min temu",
   "relativeDate.hoursAgo": "{{count}} godz. temu",
   "relativeDate.daysAgo": "{{count}} dn. temu",
-
   "filter.preset.1d": "1D",
   "filter.preset.1w": "1T",
   "filter.preset.1m": "1M",
@@ -106,7 +101,6 @@
   "filter.merge": "Połącz",
   "filter.renameGroupTitle": "Zmień nazwę grupy",
   "filter.mergeDragMessage": "Niektóre obszary zostaną połączone z istniejącymi w \"{{city}}\". Wszystkie treningi zostaną połączone.",
-
   "export.title": "Eksport",
   "export.labelPlaceholder": "Tekst etykiety",
   "export.noTrails": "Brak tras do eksportu",
@@ -120,11 +114,8 @@
   "export.alert.savedMessage": "Plakat zapisany w bibliotece zdjęć.",
   "export.alert.errorTitle": "Błąd",
   "export.alert.errorMessage": "Nie udało się zapisać plakatu.",
-
   "layout.filtersTitle": "Filtry",
-
   "import.failed": "Import nie powiódł się",
-
   "dataIo.fileNotFound": "Nie znaleziono pliku",
   "dataIo.invalidJson": "Nieprawidłowy format pliku",
   "dataIo.wrongApp": "Ten plik nie został utworzony przez Stack My Trails",
@@ -133,7 +124,6 @@
   "dataIo.signatureFailed": "Weryfikacja podpisu nie powiodła się — plik może być uszkodzony lub zmodyfikowany",
   "dataIo.missingFields": "Nieprawidłowy rekord trasy — brak wymaganych pól",
   "dataIo.missingCoordinates": "Nieprawidłowa trasa {{id}} — brak współrzędnych",
-
   "settings.keepAppOpen": "Nie zamykaj aplikacji podczas importu",
   "settings.updateLabels": "Zaktualizuj nazwy",
   "settings.updatingLabels": "Aktualizacja nazw...",

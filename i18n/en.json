@@ -2,12 +2,11 @@
   "trails.title": "YOUR TRAILS",
   "trails.loading": "Loading trails...",
   "trails.empty.title": "No trails yet",
-  "trails.empty.subtitle": "Import your workouts to see them here.",
+  "trails.empty.subtitle": "Connect to Apple Health and import your workouts to see them here.",
   "trails.empty.button": "Import Workouts",
   "trails.emptyFilter": "No trails match the selected activities",
   "trails.labelLoading": "Loading...",
   "trails.workoutFallback": "Workout",
-
   "activity.running": "Running",
   "activity.walking": "Walking",
   "activity.cycling": "Cycling",
@@ -18,12 +17,10 @@
   "activity.cycle": "Cycle",
   "activity.hike": "Hike",
   "activity.swim": "Swim",
-
   "duration.hoursMinutes": "{{h}}h {{m}}m",
   "duration.minutes": "{{m}}m",
-
   "stack.empty.title": "No trails yet",
-  "stack.empty.subtitle": "Import your workouts first to stack them on the map.",
+  "stack.empty.subtitle": "Connect to Apple Health and import your workouts to stack them on the map.",
   "stack.empty.button": "Import Workouts",
   "stack.selectArea": "Select an area",
   "stack.tapFilter": "Tap filter to choose",
@@ -32,7 +29,6 @@
   "stack.trailCountPartial": "{{rendered}} of {{total}} trails",
   "stack.selectAreaOverlay": "Select an area to see trails",
   "stack.loadingTrails": "Loading trails...",
-
   "settings.title": "Settings",
   "settings.appearance": "APPEARANCE",
   "settings.theme.auto": "Auto",
@@ -40,6 +36,7 @@
   "settings.theme.dark": "Dark",
   "settings.map": "MAP",
   "settings.showLocation": "Show My Location",
+  "settings.showLocationHint": "Requires location access to display your position on the Stack tab map.",
   "settings.healthData": "HEALTH DATA",
   "settings.totalTrails": "Total trails",
   "settings.lastImport": "Last import",
@@ -51,7 +48,9 @@
   "settings.reimportAll": "Re-import All",
   "settings.importWorkouts": "Import Workouts",
   "settings.fetchNew": "Fetch New Routes",
-  "settings.importHint": "Imports running, walking, cycling, hiking, and open water swimming workouts with GPS routes from your device.",
+  "settings.importHint": "Imports running, walking, cycling, hiking, and open water swimming workouts with GPS routes. Requires read-only access to Apple Health — your data is never uploaded or shared.",
+  "settings.healthDialog.title": "Apple Health Access",
+  "settings.healthDialog.message": "Stack My Trails reads your workout routes from Apple Health to visualize them on the map.\n\nIt reads running, walking, cycling, hiking, and swimming workouts that have GPS route data recorded by Apple Watch or any GPS-enabled workout app.\n\nYou will be asked to grant read-only access when you tap Import for the first time. Your health data is never uploaded, shared, or stored outside your device.",
   "settings.backupRestore": "BACKUP & RESTORE",
   "settings.exporting": "Exporting...",
   "settings.exportData": "Export Data",
@@ -63,7 +62,6 @@
   "settings.privacyPolicy": "Privacy Policy",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "LANGUAGE",
-
   "settings.alert.locationTitle": "Location Access",
   "settings.alert.locationMessage": "Please enable location access in Settings to show your position on the map.",
   "settings.alert.deleteTitle": "Delete All Data",
@@ -73,16 +71,13 @@
   "settings.alert.importCompleteMessage": "{{imported}} trails imported{{skippedText}} ({{total}} total in file)",
   "settings.alert.importCompleteSkipped": ", {{skipped}} already existed",
   "settings.alert.importFailedTitle": "Import Failed",
-
   "common.cancel": "Cancel",
   "common.delete": "Delete",
   "common.unknownError": "Unknown error",
-
   "relativeDate.justNow": "Just now",
   "relativeDate.minutesAgo": "{{count}}m ago",
   "relativeDate.hoursAgo": "{{count}}h ago",
   "relativeDate.daysAgo": "{{count}}d ago",
-
   "filter.preset.1d": "1D",
   "filter.preset.1w": "1W",
   "filter.preset.1m": "1M",
@@ -106,7 +101,6 @@
   "filter.merge": "Merge",
   "filter.renameGroupTitle": "Rename Group",
   "filter.mergeDragMessage": "Some areas will merge with existing areas in \"{{city}}\". All workouts will be combined.",
-
   "export.title": "Export",
   "export.labelPlaceholder": "Label text",
   "export.noTrails": "No trails to export",
@@ -120,11 +114,8 @@
   "export.alert.savedMessage": "Poster saved to your photo library.",
   "export.alert.errorTitle": "Error",
   "export.alert.errorMessage": "Failed to save poster.",
-
   "layout.filtersTitle": "Filters",
-
   "import.failed": "Import failed",
-
   "dataIo.fileNotFound": "File not found",
   "dataIo.invalidJson": "Invalid file format",
   "dataIo.wrongApp": "This file was not created by Stack My Trails",
@@ -133,7 +124,6 @@
   "dataIo.signatureFailed": "Signature verification failed — file may be corrupted or tampered with",
   "dataIo.missingFields": "Invalid trail record — missing required fields",
   "dataIo.missingCoordinates": "Invalid trail {{id}} — missing coordinates",
-
   "settings.keepAppOpen": "Keep the app open during import",
   "settings.updateLabels": "Update Labels",
   "settings.updatingLabels": "Updating labels...",

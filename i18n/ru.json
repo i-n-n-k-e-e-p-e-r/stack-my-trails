@@ -2,12 +2,11 @@
   "trails.title": "ВАШИ МАРШРУТЫ",
   "trails.loading": "Загрузка маршрутов...",
   "trails.empty.title": "Маршрутов пока нет",
-  "trails.empty.subtitle": "Импортируйте тренировки, чтобы увидеть их здесь.",
+  "trails.empty.subtitle": "Подключитесь к Apple Health и импортируйте тренировки, чтобы увидеть их здесь.",
   "trails.empty.button": "Импортировать",
   "trails.emptyFilter": "Нет маршрутов для выбранных активностей",
   "trails.labelLoading": "Загрузка...",
   "trails.workoutFallback": "Тренировка",
-
   "activity.running": "Бег",
   "activity.walking": "Ходьба",
   "activity.cycling": "Велосипед",
@@ -18,12 +17,10 @@
   "activity.cycle": "Вело",
   "activity.hike": "Поход",
   "activity.swim": "Плавание",
-
   "duration.hoursMinutes": "{{h}}ч {{m}}м",
   "duration.minutes": "{{m}}м",
-
   "stack.empty.title": "Маршрутов пока нет",
-  "stack.empty.subtitle": "Сначала импортируйте тренировки, чтобы увидеть их на карте.",
+  "stack.empty.subtitle": "Подключитесь к Apple Health и импортируйте тренировки, чтобы увидеть их на карте.",
   "stack.empty.button": "Импортировать",
   "stack.selectArea": "Выберите район",
   "stack.tapFilter": "Нажмите фильтр",
@@ -32,7 +29,6 @@
   "stack.trailCountPartial": "{{rendered}} из {{total}} маршр.",
   "stack.selectAreaOverlay": "Выберите район для отображения",
   "stack.loadingTrails": "Загрузка маршрутов...",
-
   "settings.title": "Настройки",
   "settings.appearance": "ОФОРМЛЕНИЕ",
   "settings.theme.auto": "Авто",
@@ -40,18 +36,21 @@
   "settings.theme.dark": "Тёмная",
   "settings.map": "КАРТА",
   "settings.showLocation": "Моя геопозиция",
+  "settings.showLocationHint": "Требует доступ к геолокации для отображения позиции на карте на вкладке с маршрутами.",
   "settings.healthData": "ДАННЫЕ ЗДОРОВЬЯ",
   "settings.totalTrails": "Всего маршрутов",
   "settings.lastImport": "Последний импорт",
   "settings.lastImportNever": "Никогда",
-  "settings.gpsFilter": "Фильтр GPS-спуфинга",
+  "settings.gpsFilter": "Фильтр GPS помех",
   "settings.importProgress": "{{progress}} / {{total}} тренировок",
   "settings.fetchingWorkouts": "Получение тренировок...",
   "settings.importing": "Импорт...",
   "settings.reimportAll": "Импортировать всё заново",
   "settings.importWorkouts": "Импортировать",
   "settings.fetchNew": "Загрузить новые",
-  "settings.importHint": "Загружает данные о тренировках (бег, ходьба, вело, походы и плавание) с GPS-маршрутами с вашего устройства.",
+  "settings.importHint": "Загружает тренировки (бег, ходьба, вело, походы и плавание) с GPS-маршрутами. Требует доступ только для чтения из Apple Health — ваши данные никуда не передаются.",
+  "settings.healthDialog.title": "Доступ к Apple Health",
+  "settings.healthDialog.message": "Stack My Trails читает маршруты тренировок из Apple Health для отображения на карте.\n\nИмпортируются тренировки по бегу, ходьбе, велосипеду, походам и плаванию с GPS-маршрутами, записанными Apple Watch или другим приложением с поддержкой GPS.\n\nПри первом нажатии на «Импорт» приложение запросит доступ только для чтения. Ваши данные о здоровье никогда не загружаются, не передаются и не хранятся за пределами устройства.",
   "settings.backupRestore": "РЕЗЕРВНОЕ КОПИРОВАНИЕ",
   "settings.exporting": "Экспорт...",
   "settings.exportData": "Экспорт данных",
@@ -63,7 +62,6 @@
   "settings.privacyPolicy": "Политика конфиденциальности",
   "settings.version": "Stack My Trails v{{version}}",
   "settings.language": "ЯЗЫК",
-
   "settings.alert.locationTitle": "Доступ к геопозиции",
   "settings.alert.locationMessage": "Пожалуйста, разрешите доступ к геопозиции в Настройках, чтобы показать ваше местоположение на карте.",
   "settings.alert.deleteTitle": "Удалить все данные",
@@ -73,16 +71,13 @@
   "settings.alert.importCompleteMessage": "Импортировано: {{imported}}{{skippedText}} ({{total}} всего в файле)",
   "settings.alert.importCompleteSkipped": ", пропущено: {{skipped}}",
   "settings.alert.importFailedTitle": "Ошибка импорта",
-
   "common.cancel": "Отмена",
   "common.delete": "Удалить",
   "common.unknownError": "Неизвестная ошибка",
-
   "relativeDate.justNow": "Только что",
   "relativeDate.minutesAgo": "{{count}} мин. назад",
   "relativeDate.hoursAgo": "{{count}} ч. назад",
   "relativeDate.daysAgo": "{{count}} дн. назад",
-
   "filter.preset.1d": "1Д",
   "filter.preset.1w": "1Н",
   "filter.preset.1m": "1М",
@@ -106,7 +101,6 @@
   "filter.merge": "Объединить",
   "filter.renameGroupTitle": "Переименовать группу",
   "filter.mergeDragMessage": "Некоторые районы будут объединены с существующими в «{{city}}». Все тренировки будут объединены.",
-
   "export.title": "Экспорт",
   "export.labelPlaceholder": "Текст подписи",
   "export.noTrails": "Нет маршрутов для экспорта",
@@ -120,11 +114,8 @@
   "export.alert.savedMessage": "Постер сохранён в фотоальбом.",
   "export.alert.errorTitle": "Ошибка",
   "export.alert.errorMessage": "Не удалось сохранить постер.",
-
   "layout.filtersTitle": "Фильтры",
-
   "import.failed": "Ошибка импорта",
-
   "dataIo.fileNotFound": "Файл не найден",
   "dataIo.invalidJson": "Неверный формат файла",
   "dataIo.wrongApp": "Этот файл не создан в Stack My Trails",
@@ -133,7 +124,6 @@
   "dataIo.signatureFailed": "Проверка подписи не пройдена — файл повреждён или изменён",
   "dataIo.missingFields": "Неверная запись маршрута — отсутствуют обязательные поля",
   "dataIo.missingCoordinates": "Неверный маршрут {{id}} — отсутствуют координаты",
-
   "settings.keepAppOpen": "Не закрывайте приложение во время импорта",
   "settings.updateLabels": "Обновить названия",
   "settings.updatingLabels": "Обновление названий...",
