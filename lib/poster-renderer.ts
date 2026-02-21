@@ -17,7 +17,7 @@ import type {
   SkTypeface,
 } from "@shopify/react-native-skia";
 import type { Region } from "react-native-maps";
-import { computeBoundingBox, type Trail } from "@/lib/geo";
+import { computeBoundingBox, splitByTransit, type Trail } from "@/lib/geo";
 
 // ---------------------------------------------------------------------------
 // Poster themes
@@ -331,24 +331,27 @@ export function buildTrailPaths(
   const paths: SkPath[] = [];
 
   for (const trail of trails) {
-    if (trail.coordinates.length < 2) continue;
+    const segments = splitByTransit(trail.coordinates, trail.activityType);
+    for (const segment of segments) {
+      if (segment.length < 2) continue;
 
-    const path = Skia.Path.Make();
-    const first = transform.toCanvas(
-      trail.coordinates[0].latitude,
-      trail.coordinates[0].longitude,
-    );
-    path.moveTo(first.x, first.y);
-
-    for (let i = 1; i < trail.coordinates.length; i++) {
-      const pt = transform.toCanvas(
-        trail.coordinates[i].latitude,
-        trail.coordinates[i].longitude,
+      const path = Skia.Path.Make();
+      const first = transform.toCanvas(
+        segment[0].latitude,
+        segment[0].longitude,
       );
-      path.lineTo(pt.x, pt.y);
-    }
+      path.moveTo(first.x, first.y);
 
-    paths.push(path);
+      for (let i = 1; i < segment.length; i++) {
+        const pt = transform.toCanvas(
+          segment[i].latitude,
+          segment[i].longitude,
+        );
+        path.lineTo(pt.x, pt.y);
+      }
+
+      paths.push(path);
+    }
   }
 
   return paths;

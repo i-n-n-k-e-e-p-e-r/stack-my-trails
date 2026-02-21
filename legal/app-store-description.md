@@ -28,7 +28,7 @@ KEY FEATURES
 
 - Import workout routes from Apple Health with one tap
 - Browse all your trails in a scrollable list with preview maps
-- Stack hundreds of routes on a single map view
+- Stack up to 500 routes on a single map view
 - Filter by area, date range, and activity type (running, walking, cycling, hiking, swimming)
 - Create stunning poster images with 4 visual themes
 - Customize posters: intensity, color tint, labels, decorative frames

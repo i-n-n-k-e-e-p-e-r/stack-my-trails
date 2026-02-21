@@ -24,7 +24,7 @@ import { Colors, Fonts } from "@/constants/theme";
 import * as Location from "expo-location";
 import { getTrailCount, getSetting, getLastTrailLocation } from "@/lib/db";
 import { useTrails } from "@/hooks/use-trails";
-import { smoothCoordinates, type Trail } from "@/lib/geo";
+import { smoothCoordinates, splitByTransit, type Trail } from "@/lib/geo";
 import { setExportData } from "@/lib/export-store";
 import {
   getFilters,
@@ -270,16 +270,18 @@ export default function StackScreen() {
         legalLabelInsets={{ top: 0, left: 0, bottom: 0, right: 0 }}
         onRegionChangeComplete={setMapRegion}
       >
-        {renderedTrails.map((trail) => (
-          <Polyline
-            key={trail.workoutId}
-            coordinates={smoothCoordinates(trail.coordinates)}
-            strokeColor={colors.trailStrokeStacked}
-            strokeWidth={TRAIL_WIDTH}
-            lineCap="round"
-            lineJoin="round"
-          />
-        ))}
+        {renderedTrails.flatMap((trail) =>
+          splitByTransit(trail.coordinates, trail.activityType).map((segment, i) => (
+            <Polyline
+              key={`${trail.workoutId}-${i}`}
+              coordinates={smoothCoordinates(segment)}
+              strokeColor={colors.trailStrokeStacked}
+              strokeWidth={TRAIL_WIDTH}
+              lineCap="round"
+              lineJoin="round"
+            />
+          ))
+        )}
       </MapView>
 
       {/* Export frame preview overlay */}

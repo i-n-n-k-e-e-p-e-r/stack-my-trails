@@ -1,6 +1,7 @@
 export interface Coordinate {
   latitude: number;
   longitude: number;
+  speed?: number; // m/s, from HealthKit CLLocation. undefined = legacy data, no transit filtering applied
 }
 
 export interface BoundingBox {
@@ -214,6 +215,54 @@ export function simplifyCoordinates(
   }
 
   return simplify(coords);
+}
+
+/**
+ * Returns the maximum "active workout" speed in m/s for a given HealthKit
+ * activity type. Speeds above this indicate the device was on public transport.
+ * Activity type constants: running=37, walking=52, cycling=13, hiking=24, swimming=46
+ */
+function getTransitSpeedThreshold(activityType: number): number {
+  switch (activityType) {
+    case 37: return 6;   // running: ~22 km/h catches buses, not fast recreational sprints
+    case 52: return 3;   // walking: ~11 km/h, anything faster is a vehicle
+    case 24: return 3;   // hiking: same as walking
+    case 13: return 12;  // cycling: ~43 km/h catches trains and most city transit
+    case 46: return 3;   // swimming
+    default:  return 8;  // ~29 km/h conservative fallback
+  }
+}
+
+/**
+ * Splits a coordinate array into segments by dropping points where speed
+ * exceeds the activity's transit threshold. Each returned sub-array should
+ * be rendered as a separate Polyline/Skia path; gaps are where transit was detected.
+ *
+ * Backward compatible: if no coordinate has a speed value (legacy imports),
+ * returns the original array wrapped in a single-element array.
+ */
+export function splitByTransit(
+  coords: Coordinate[],
+  activityType: number,
+): Coordinate[][] {
+  const hasSpeed = coords.some((c) => c.speed !== undefined);
+  if (!hasSpeed) return [coords];
+
+  const maxSpeed = getTransitSpeedThreshold(activityType);
+  const segments: Coordinate[][] = [];
+  let current: Coordinate[] = [];
+
+  for (const coord of coords) {
+    if (coord.speed !== undefined && coord.speed > maxSpeed) {
+      if (current.length >= 2) segments.push(current);
+      current = [];
+    } else {
+      current.push(coord);
+    }
+  }
+  if (current.length >= 2) segments.push(current);
+
+  return segments.length > 0 ? segments : [coords];
 }
 
 /** Trail metadata without coordinates — cheap to load for lists and clustering. */

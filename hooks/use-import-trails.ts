@@ -94,14 +94,16 @@ export function useImportTrails(): UseImportTrailsResult {
                 latitude: loc.latitude,
                 longitude: loc.longitude,
                 timestamp: loc.date.getTime(),
+                speed: loc.speed,
               }));
 
               // Remove GPS spoofing outliers (if enabled), then simplify
               const cleaned = useGpsFilter
                 ? filterGpsOutliers(timedCoords)
-                : timedCoords.map(({ latitude, longitude }) => ({
+                : timedCoords.map(({ latitude, longitude, speed }) => ({
                     latitude,
                     longitude,
+                    speed,
                   }));
               if (cleaned.length < 2) continue;
               const coordinates = simplifyCoordinates(cleaned, 0.00005);

@@ -23,7 +23,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Colors, Fonts } from "@/constants/theme";
 import { getAllTrailSummaries, getTrailCoordinates } from "@/lib/db";
-import { smoothCoordinates } from "@/lib/geo";
+import { smoothCoordinates, splitByTransit } from "@/lib/geo";
 import type { TrailSummary, Coordinate } from "@/lib/geo";
 import { useTranslation } from "@/contexts/language";
 
@@ -94,7 +94,7 @@ export default function TrailsScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedActivities, setSelectedActivities] = useState<number[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedCoords, setSelectedCoords] = useState<Coordinate[]>([]);
+  const [selectedSegments, setSelectedSegments] = useState<Coordinate[][]>([]);
   const mapReady = useRef(false);
 
   const { height: windowHeight } = useWindowDimensions();
@@ -156,25 +156,28 @@ export default function TrailsScreen() {
 
   useEffect(() => {
     if (!selectedId) {
-      setSelectedCoords([]);
+      setSelectedSegments([]);
       return;
     }
-    getTrailCoordinates(db, selectedId).then(setSelectedCoords);
-  }, [db, selectedId]);
+    const summary = trails.find((t) => t.workoutId === selectedId);
+    getTrailCoordinates(db, selectedId).then((coords) => {
+      setSelectedSegments(splitByTransit(coords, summary?.activityType ?? 0));
+    });
+  }, [db, selectedId, trails]);
 
   const fitMap = useCallback(() => {
-    if (!mapReady.current || selectedCoords.length === 0) return;
-    mapRef.current?.fitToCoordinates(selectedCoords, {
+    if (!mapReady.current || selectedSegments.length === 0) return;
+    mapRef.current?.fitToCoordinates(selectedSegments.flat(), {
       edgePadding: { top: 40, right: 40, bottom: 40, left: 40 },
       animated: true,
     });
-  }, [selectedCoords]);
+  }, [selectedSegments]);
 
   useEffect(() => {
-    if (selectedCoords.length === 0) return;
+    if (selectedSegments.length === 0) return;
     const timer = setTimeout(fitMap, 200);
     return () => clearTimeout(timer);
-  }, [selectedCoords, fitMap]);
+  }, [selectedSegments, fitMap]);
 
   const handleSelect = useCallback((id: string) => {
     setSelectedId(id);
@@ -331,15 +334,16 @@ export default function TrailsScreen() {
             fitMap();
           }}
         >
-          {selectedCoords.length > 0 && (
+          {selectedSegments.flatMap((segment, i) => (
             <Polyline
-              coordinates={smoothCoordinates(selectedCoords)}
+              key={i}
+              coordinates={smoothCoordinates(segment)}
               strokeColor={colors.trailStroke}
               strokeWidth={3.5}
               lineCap="round"
               lineJoin="round"
             />
-          )}
+          ))}
         </MapView>
       </View>
 

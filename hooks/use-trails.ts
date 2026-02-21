@@ -13,7 +13,7 @@ import {
   type Trail,
 } from "@/lib/geo";
 
-const MAX_RENDERED_TRAILS = 1000;
+const MAX_RENDERED_TRAILS = 500;
 /** Re-simplify with coarser tolerance when many trails are stacked */
 const RESIMPLIFY_THRESHOLD = 100;
 const COARSE_TOLERANCE = 0.0002;
@@ -52,8 +52,10 @@ export function useTrails({
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
-  const locationKey = `${country ?? ''}\0${region ?? ''}\0${city ?? ''}`;
+  const locationKey = `${country ?? ""}\0${region ?? ""}\0${city ?? ""}`;
   const activityKey = activityTypes ? activityTypes.join(",") : "";
+  const startMs = startDate.getTime();
+  const endMs = endDate.getTime();
 
   useEffect(() => {
     let cancelled = false;
@@ -64,7 +66,15 @@ export function useTrails({
 
       try {
         const summaries = country
-          ? await getTrailSummariesByLocation(db, startDate, endDate, country, region, city, activityTypes)
+          ? await getTrailSummariesByLocation(
+              db,
+              startDate,
+              endDate,
+              country,
+              region,
+              city,
+              activityTypes,
+            )
           : await getTrailSummaries(db, startDate, endDate, activityTypes);
         if (cancelled) return;
 
@@ -102,7 +112,14 @@ export function useTrails({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, startDate.getTime(), endDate.getTime(), locationKey, activityKey, refreshKey]);
+  }, [
+    db,
+    startMs,
+    endMs,
+    locationKey,
+    activityKey,
+    refreshKey,
+  ]);
 
   const loadClusterTrails = useCallback(
     async (cluster: TrailCluster): Promise<Trail[]> => {
